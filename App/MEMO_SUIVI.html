@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PEA Investment — Mémo de suivi (ne rien oublier)</title>
+<style>
+/* Mémo autonome (aucune dépendance Internet). Écran = thème doré/sombre ; impression = fond blanc. */
+:root{
+  --bg:#0c1420;--bg2:#111c2e;--bg3:#162033;--gold:#C9913A;--gold2:#e0b25e;
+  --ink:rgba(255,255,255,.92);--muted:rgba(255,255,255,.55);--line:rgba(201,145,58,.22);--line2:rgba(255,255,255,.08);
+  --serif:Georgia,'Times New Roman',serif;--ui:system-ui,-apple-system,'Segoe UI',sans-serif;--mono:ui-monospace,'DM Mono',Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#05070d;color:var(--ink);font-family:var(--ui);line-height:1.5;padding:24px 14px 60px;-webkit-text-size-adjust:100%}
+.wrap{max-width:780px;margin:0 auto}
+.head{background:linear-gradient(158deg,#18253c,#0c1420);border:1px solid var(--line);border-radius:18px;padding:22px 20px;margin-bottom:18px;position:relative;overflow:hidden}
+.head::after{content:"";position:absolute;right:-50px;top:-50px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(201,145,58,.13),transparent 70%)}
+.kick{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);position:relative}
+.head h1{font-family:var(--serif);font-weight:600;font-size:27px;margin:8px 0 4px;color:#fff;position:relative}
+.head .sub{font-size:13px;color:var(--muted);position:relative}
+.oneliner{background:var(--gold);color:#0c1420;border-radius:12px;padding:13px 16px;font-weight:600;font-size:14px;margin-bottom:20px;font-family:var(--serif)}
+.card{background:var(--bg2);border:1px solid var(--line2);border-radius:14px;padding:18px;margin-bottom:14px;break-inside:avoid}
+.card h2{font-family:var(--serif);font-size:19px;color:#fff;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--gold);color:#0c1420;font-family:var(--mono);font-weight:700;font-size:14px;flex-shrink:0}
+.tag{font-family:var(--mono);font-size:10px;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+ol.steps{list-style:none;counter-reset:s;margin-top:6px}
+ol.steps>li{counter-increment:s;position:relative;padding:9px 0 9px 40px;border-bottom:1px solid var(--line2);font-size:14px}
+ol.steps>li:last-child{border-bottom:0}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:8px;width:26px;height:26px;border-radius:7px;background:var(--bg3);border:1px solid var(--line);color:var(--gold);font-family:var(--mono);font-size:13px;display:flex;align-items:center;justify-content:center}
+.chk{list-style:none}
+.chk li{position:relative;padding:7px 0 7px 28px;font-size:14px;border-bottom:1px solid var(--line2)}
+.chk li:last-child{border-bottom:0}
+.chk li::before{content:"";position:absolute;left:0;top:10px;width:15px;height:15px;border:2px solid var(--gold);border-radius:4px}
+b,strong{color:#fff}
+.hl{color:var(--gold2);font-weight:600}
+.rule{margin-top:12px;padding:10px 12px;background:rgba(201,145,58,.1);border:1px solid var(--line);border-radius:9px;font-size:13px;color:var(--gold2)}
+.warn{margin-top:10px;padding:10px 12px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:9px;font-size:13px;color:#fca5a5}
+table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+td.when{font-family:var(--mono);color:var(--gold);white-space:nowrap;width:34%}
+.sub-note{font-size:12px;color:var(--muted);margin-top:8px}
+.foot{text-align:center;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.3);margin-top:24px;letter-spacing:.1em}
+@media print{
+  body{background:#fff;color:#1a1a1a;padding:0}
+  .head{background:#f4efe3;border-color:#d8c9a0}.head h1,b,strong{color:#1a1a1a}.head .sub,.sub-note,td.when{color:#6b5e3a}
+  .card{background:#fff;border:1px solid #ddd;box-shadow:none}.card h2{color:#1a1a1a}
+  .oneliner{background:#C9913A;color:#1a1a1a}
+  .num{background:#C9913A;color:#fff}ol.steps>li::before{background:#f4efe3;color:#9a7b3f}
+  .hl{color:#9a7b3f}.tag{color:#9a7b3f}.rule{background:#faf6ec;color:#6b5e3a}.warn{background:#fdeaea;color:#a33}
+  .chk li::before{border-color:#9a7b3f}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="kick">PEA Investment · Mémo de suivi · 2026 → 2056</div>
+    <h1>Ne rien oublier — de A à Z</h1>
+    <div class="sub">Rituel mensuel · rendez-vous périodiques · cas particuliers · pérennité 30 ans · calendrier</div>
+  </div>
+
+  <div class="oneliner">Chaque mois : 1 virement + 1 ordre, enregistrés dans l'app. Tous les 6 mois : bilan + export JSON. Aux dates clés : monte le DCA.</div>
+
+  <!-- 2 -->
+  <div class="card">
+    <h2><span class="num">2</span> Rituel mensuel <span style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400">(~10 min)</span></h2>
+    <div class="tag">À date fixe — ex. le 1er du mois</div>
+    <ol class="steps">
+      <li><b>Ouvre l'app</b> → Dashboard → repère <b>« Prochain ordre »</b> (ex. <span class="hl">C2 · PAEEM · 180 €</span>).</li>
+      <li><b>Vire l'argent</b> sur le PEA Fortuneo = <b>DCA du mois + résiduel reporté</b> (le résiduel est affiché dans <i>Suivi DCA → Compte espèces</i>). Attends 24–48 h que les fonds soient disponibles.</li>
+      <li><b>Sur Fortuneo</b> : <b>1 seul ordre</b> sur l'ETF du cycle → achète le <b>maximum de parts entières</b> possible (gratuit si &lt; 500 €). Note le <b>nb de parts</b> et le <b>prix</b>.</li>
+      <li><b>Enregistre dans l'app</b> (Suivi DCA) : <b>a)</b> Compte espèces → <span class="hl">+ virement</span> (montant + date) ; <b>b)</b> Formulaire d'ordre → <b>parts, prix, date</b> → Enregistrer. <span class="sub-note">Le résiduel se recalcule tout seul (virements − achats).</span></li>
+      <li><i>(option)</i> Dashboard → saisis les <b>cours du jour</b> pour voir ta plus-value.</li>
+      <li><b>Coche la checklist mensuelle</b> (onglet Checklists).</li>
+    </ol>
+    <div class="rule">⭐ Règle d'or : ne <b>jamais</b> sauter un mois, et <b>toujours</b> enregistrer le virement <b>ET</b> l'ordre.</div>
+  </div>
+
+  <!-- 3 -->
+  <div class="card">
+    <h2><span class="num">3</span> Rendez-vous périodiques</h2>
+    <div class="tag">À ne pas oublier</div>
+    <ul class="chk">
+      <li><b>Tous les 6 mois (Juin &amp; Décembre)</b> — onglet <b>Bilan</b> : saisis les valeurs de marché → l'app donne l'écart vs 60/30/10 et <b>l'action</b> (rien si &lt; 5 pts · surpondérer si 5–10 pts · arbitrer si &gt; 10 pts). Puis <b>Export → Télécharger JSON</b> (sauvegarde).</li>
+      <li><b>2031</b> — passe le DCA de <b>180 € → 350 €</b> <span class="sub-note">(l'app affiche un bandeau « Passer à 350 € » → clique).</span></li>
+      <li><b>2036</b> — passe à <b>500 €</b> (Scénario B) <span class="sub-note">(idem, l'app te le propose).</span></li>
+      <li><b>~2055</b> — le plafond 150 k€ de versements approche (Sc. B) → ouvre un <b>CTO</b> pour continuer (le PEA reste).</li>
+    </ul>
+  </div>
+
+  <!-- 4 -->
+  <div class="card">
+    <h2><span class="num">4</span> Cas particuliers</h2>
+    <ul class="chk">
+      <li><b>Bonus, prime, vente, parrainage</b> → Suivi DCA → bouton <span class="hl">« + Apport exceptionnel »</span> → enregistre-le en <b>C0</b> (n'avance pas le cycle, compté daté dans la courbe « Réel »). Enregistre aussi le <b>virement</b> correspondant.</li>
+    </ul>
+    <div class="warn">⚠️ <b>Krach / chute des marchés</b> → bouton <b>Mode Crise</b> : règle des 48 h, <b>ne JAMAIS vendre</b>, continuer (voire doubler) le DCA. Sur 30 ans, le plan absorbe les crises.</div>
+  </div>
+
+  <!-- 5 -->
+  <div class="card">
+    <h2><span class="num">5</span> Pérennité 30 ans</h2>
+    <div class="tag">Le fichier = ton trésor · le JSON = tes données</div>
+    <ul class="chk">
+      <li><b>Garde <span class="hl">PEA_Investment.html</span> en ≥ 2 endroits</b> (OneDrive + une 2ᵉ copie : disque externe / autre cloud / mail à toi-même). Il est autonome → marche toujours, hors-ligne.</li>
+      <li><b>Exporte le JSON</b> au moins <b>2×/an</b> (aux bilans) et garde les derniers fichiers.</li>
+      <li><b>Tu changes de téléphone</b> → ré-ouvre l'URL dans Safari → « Sur l'écran d'accueil » → puis <b>Export → Importer</b> ton dernier JSON.</li>
+      <li><b>L'hébergeur ferme</b> → reprends le fichier, re-dépose-le ailleurs (GitHub Pages, Cloudflare Pages…) → nouvelle URL → <b>Importer</b> le JSON.</li>
+      <li><b>Gros problème</b> → le dossier <b>DOC/</b> (kit + 216 tests) permet de tout réparer (le donner à un dev ou une IA).</li>
+    </ul>
+  </div>
+
+  <!-- 6 -->
+  <div class="card">
+    <h2><span class="num">6</span> Calendrier anti-oubli</h2>
+    <table>
+      <tr><th>Quand</th><th>Quoi faire</th></tr>
+      <tr><td class="when">Chaque mois</td><td>Virer + 1 ordre Fortuneo + enregistrer (virement <b>et</b> ordre) + cocher la checklist</td></tr>
+      <tr><td class="when">Juin &amp; Décembre</td><td>Bilan + rééquilibrage + <b>Export JSON</b> (sauvegarde)</td></tr>
+      <tr><td class="when">2031</td><td>DCA → <b>350 €</b> (l'app te le propose)</td></tr>
+      <tr><td class="when">2036</td><td>DCA → <b>500 €</b> (l'app te le propose)</td></tr>
+      <tr><td class="when">~2055</td><td>Plafond 150 k€ atteint (Sc. B) → ouvrir un <b>CTO</b></td></tr>
+      <tr><td class="when">Bonus / vente</td><td><b>+ Apport exceptionnel</b> (C0) + enregistrer le virement</td></tr>
+      <tr><td class="when">Krach</td><td><b>Mode Crise</b> → ne pas vendre, continuer le DCA</td></tr>
+    </table>
+  </div>
+
+  <div class="foot">PEA Investment · Mémo de suivi · Portefeuille 60 / 30 / 10 · Objectif ~504 k€ à 54 ans</div>
+</div>
+</body>
+</html>
