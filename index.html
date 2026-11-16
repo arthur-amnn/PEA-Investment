@@ -1253,7 +1253,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
     <svg class="pea-da-calendar" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 10h18"/></g></svg>
     <div class="na-badge" id="k-next-etf">&#xC0; configurer</div>
     <div class="na-info">
-      <div class="t">Prochain DCA</div>
+      <div class="t">Cycle th&#xE9;orique du mois</div>
       <div class="d" id="k-next-name">Renseignez le premier mois DCA</div>
     </div>
     <div class="na-right">
@@ -1846,14 +1846,8 @@ function peaExportTabConflict() {
   link.download = 'pea_copie_onglet_non_synchronise.json'; link.click();
 }
 function peaCloseTabConflict() { var panel = document.getElementById('pea-tab-conflict'); if (panel) panel.style.display = 'none'; }
-(function(){
-  var d=null;
-  try { d=localStorage.getItem('pea_design_etape1_v5'); }
-  catch(e) { peaStorageGuard.blocked=true; peaStorageGuard.reason='access'; return; }
-  peaExpectedStorage=d;
-  if(d===null)return;
-  try {
-    var p=JSON.parse(d);
+// Identical validation for imported and persisted data; mutates only its caller-owned copy.
+function peaNormalizeStoredState(p){
     if(!p||typeof p!=='object'||Array.isArray(p)||(!Object.prototype.hasOwnProperty.call(p,'orders')||!Array.isArray(p.orders))||('deposits' in p&&!Array.isArray(p.deposits))||('bilans' in p&&!Array.isArray(p.bilans))||('sales' in p&&!Array.isArray(p.sales))||('cashFlows' in p&&!Array.isArray(p.cashFlows))||('plan' in p&&(!p.plan||typeof p.plan!=='object'||Array.isArray(p.plan)))||('quotes' in p&&(!p.quotes||typeof p.quotes!=='object'||Array.isArray(p.quotes))))throw Error('Etat illisible');
     // Convert only unambiguous decimal strings whose decimal value survives the
     // conversion. JSON is never rewritten here; on failure d remains recoverable.
@@ -1904,6 +1898,17 @@ function peaCloseTabConflict() { var panel = document.getElementById('pea-tab-co
     // Number(...); validate them without changing their established representation.
     if(p.plan)['marketValue','cash','totalDeposits','monthly'].forEach(function(k){var probe={value:p.plan[k]};numeric(probe,'value',true);if(probe.value!==undefined&&probe.value!==null&&probe.value!==''&&probe.value<0)throw Error('Plan illisible');});
     if(p.quotes)Object.keys(p.quotes).forEach(function(k){numeric(p.quotes,k,true);if(p.quotes[k]!==null&&p.quotes[k]!==''&&p.quotes[k]<=0)throw Error('Cours illisible');});
+    return p;
+}
+(function(){
+  var d=null;
+  try { d=localStorage.getItem('pea_design_etape1_v5'); }
+  catch(e) { peaStorageGuard.blocked=true; peaStorageGuard.reason='access'; return; }
+  peaExpectedStorage=d;
+  if(d===null)return;
+  try {
+    var p=JSON.parse(d);
+    peaNormalizeStoredState(p);
     S=Object.assign({},S,p);
     // Validate the complete sales journal before the application's init handler.
     document.addEventListener('DOMContentLoaded',function(){
@@ -2228,6 +2233,7 @@ function editOrder(id) {
 }
 
 function cancelEdit() {
+  peaOrderNetEdit = null;
   document.getElementById('edit-id').value = '';
   document.getElementById('o-date').value = peaLocalToday();
   document.getElementById('form-title').textContent = 'Enregistrer un ordre';
@@ -3243,9 +3249,12 @@ function peaUpdateOrderPreview() {
     el.textContent = 'Net d\u00e9bit\u00e9 : ' + fmtC(total) + (fee ? ' \u00b7 frais : ' + fmtC(Number(fee.replace(',', '.'))) : '');
   } catch (e) { el.textContent = 'V\u00e9rifiez les montants saisis'; }
 }
+var peaOrderNetEdit = null;
 function setupPreview() {
   ['o-qty','o-price','o-etf','o-fee','o-net'].forEach(function(id) {
     document.getElementById(id).addEventListener('input', function() {
+      if (id==='o-net' && peaOrderNetEdit && String(document.getElementById('edit-id').value)===peaOrderNetEdit.id) peaOrderNetEdit.explicit=true;
+      if (['o-qty','o-price','o-fee'].includes(id) && document.getElementById('edit-id').value && peaOrderNetEdit) peaOrderNetEdit.explicit=false;
       if (['o-qty','o-price','o-fee'].includes(id) && document.getElementById('edit-id').value && document.getElementById('o-net').value) {
         document.getElementById('o-net').value = '';
         document.getElementById('o-net-hint').textContent = 'Le net precedent a ete efface pour recalculer le total. Renseigne-le si ton courtier indique un autre montant.';
@@ -3333,9 +3342,29 @@ function init() {
 
 // PREPARATION V5 : les valeurs individuelles restent sur l'appareil.
 function peaValidMoneyInput(v){return /^(?:\d+(?:[.,]\d{1,2})?|[.,]\d{1,2})$/.test(String(v).trim());}
-function peaCents(v){var n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0)throw Error('Montant invalide');return Math.round((n+1e-10)*100);}
-function peaOrderTotal(qty,price,fee,net){var q=Number(qty),p=Number(String(price).replace(',','.'));if(!Number.isInteger(q)||q<=0||!Number.isFinite(p)||p<=0)throw Error('Parts ou prix invalides');if(net!==undefined&&net!==null&&String(net)!==''){var cents=peaCents(net);if(cents<=0)throw Error('Le montant net doit etre positif');return cents/100;}return (Math.floor((q*Math.round(p*10000)+50)/100)+peaCents(fee||0))/100;}
-function peaStats(orders,prices){var out={};['DCAM','PAEEM','PNAS'].forEach(function(k){out[k]={qty:0,cost:0,pru:null,value:null};});(orders||[]).forEach(function(o){var p=out[o.etf];if(!p)return;p.qty+=Number(o.qty)||0;p.cost+=Number.isFinite(Number(o.total))?Number(o.total):peaOrderTotal(o.qty,o.price,o.fee);});Object.keys(out).forEach(function(k){var x=out[k];x.cost=Math.round(x.cost*100)/100;x.pru=x.qty?x.cost/x.qty:null;var p=prices&&Number(prices[k]);x.value=x.qty===0?0:(Number.isFinite(p)&&p>0?x.qty*p:null);});return out;}
+function peaCents(v){var n=Number(String(v).replace(',','.')),c=Math.round((n+1e-10)*100);if(!Number.isFinite(n)||n<0||!Number.isSafeInteger(c))throw Error('Montant invalide');return c;}
+function peaOrderTotal(qty,price,fee,net,allowZero){
+ var q=Number(qty),text=String(price).trim(),p=Number(text.replace(',','.'));
+ if(!Number.isSafeInteger(q)||q<=0||!/^(?:\d+(?:[.,]\d{1,4})?|[.,]\d{1,4})$/.test(text)||!Number.isFinite(p)||p<=0)throw Error('Parts ou prix invalides : indique un prix positif avec au maximum quatre decimales.');
+ if(net!==undefined&&net!==null&&String(net)!==''){var cents=peaCents(net);if(cents<=0)throw Error('Le montant net doit etre positif');return cents/100;}
+ var scaled=q*Math.round(p*10000);if(!Number.isSafeInteger(scaled)||scaled>Number.MAX_SAFE_INTEGER-50)throw Error('Montant de l ordre trop eleve.');
+ var total=Math.floor((scaled+50)/100)+peaCents(fee||0);if(!Number.isSafeInteger(total)||(total<=0&&!allowZero))throw Error('Le montant total calcule doit etre positif.');return total/100;
+}
+// Valorisation decimale : multiplication exacte des chiffres saisis avant conversion en Number.
+// Ne pas arrondir aux centimes ici : allocations et autres calculs gardent la precision.
+function peaExactMarketValue(qty, price){
+ var q=Number(qty), p=Number(price);
+ if(!Number.isSafeInteger(q)||q<0||!Number.isFinite(p)||p<=0)return null;
+ if(q===0)return 0;
+ var m=String(p).match(/^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i);
+ if(!m)return null;
+ var digits=(m[1]+(m[2]||'')).replace(/^0+/,'')||'0', exponent=Number(m[3]||0)-(m[2]||'').length, coefficient;
+ if(typeof BigInt==='function')coefficient=(BigInt(digits)*BigInt(q)).toString();
+ else {var product=Number(digits)*q;if(!Number.isSafeInteger(product))return null;coefficient=String(product);}
+ var value=Number(coefficient+'e'+exponent);
+ return Number.isFinite(value)&&value<=Number.MAX_SAFE_INTEGER/100?value:null;
+}
+function peaStats(orders,prices){var out={};['DCAM','PAEEM','PNAS'].forEach(function(k){out[k]={qty:0,cost:0,pru:null,value:null};});(orders||[]).forEach(function(o){var p=out[o.etf];if(!p)return;p.qty+=Number(o.qty)||0;p.cost+=Number.isFinite(Number(o.total))?Number(o.total):peaOrderTotal(o.qty,o.price,o.fee);});Object.keys(out).forEach(function(k){var x=out[k];x.cost=Math.round(x.cost*100)/100;x.pru=x.qty?x.cost/x.qty:null;var p=prices&&Number(prices[k]);x.value=x.qty===0?0:(Number.isFinite(p)&&p>0?peaExactMarketValue(x.qty,p):null);});return out;}
 function peaMonthIndex(s){if(!/^\d{4}-\d{2}$/.test(String(s)))throw Error('Mois invalide');var a=s.split('-').map(Number);if(a[1]<1||a[1]>12)throw Error('Mois invalide');return a[0]*12+a[1]-1;}
 function peaMonthString(i){return Math.floor(i/12)+'-'+String(i%12+1).padStart(2,'0');}
 function peaCycleForDate(dateISO,startISO){var n=peaMonthIndex(String(dateISO).slice(0,7))-peaMonthIndex(String(startISO).slice(0,7));if(n<0)return null;var x=CYCLE_DEF[n%10];return {index:n%10,cycle:x.pos,round:Math.floor(n/10)+1,etf:x.etf};}
@@ -3343,7 +3372,7 @@ function peaProjection(c){var m=peaMonthIndex(c.startMonth),end=peaMonthIndex(c.
 function makeBackup(){var extended=(Array.isArray(S.cashFlows)&&S.cashFlows.length>0)||(Array.isArray(S.sales)&&S.sales.length>0);return {format:extended?'pea-full-v2':'pea-full-v1',version:extended?2:1,exportedAt:new Date().toISOString(),state:JSON.parse(JSON.stringify(S))};}
 function peaLocalToday(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function peaValidDate(s){if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;var d=new Date(s+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s;}
-function validateBackup(input){try{var d=typeof input==='string'?JSON.parse(input):input;if(!d||typeof d!=='object')throw Error('Fichier invalide');var mode=((d.format==='pea-full-v1'&&d.version===1)||(d.format==='pea-full-v2'&&d.version===2))?'full':(d.etat&&Array.isArray(d.etat.orders)?'legacy':null),st=mode==='full'?d.state:mode==='legacy'?{orders:d.etat.orders}:null;if(st)st=JSON.parse(JSON.stringify(st));if(st&&st.sales!==undefined&&!Array.isArray(st.sales))throw Error('Liste des ventes invalide.');if(st&&Array.isArray(st.sales)&&st.sales.length&&typeof peaValidateSalesJournal!=='function')throw Error('Sauvegarde avec ventes : cette version ne sait pas encore les verifier.');if(!st||!Array.isArray(st.orders))throw Error('Liste des ordres absente');st.orders.forEach(function(o){if(!o||!['DCAM','PAEEM','PNAS','CEM'].includes(o.etf)||!peaValidDate(o.date)||!Number.isInteger(Number(o.qty))||Number(o.qty)<=0||o.total===null||!Number.isFinite(Number(o.total))||Number(o.total)<=0||!Number.isFinite(Number(o.price))||Number(o.price)<=0||(o.fee!==undefined&&o.fee!==null&&(!Number.isFinite(Number(o.fee))||Number(o.fee)<0)))throw Error('Ordre invalide');o.qty=Number(o.qty);o.price=Number(o.price);o.total=Number(o.total);if(o.fee!==undefined&&o.fee!==null)o.fee=Number(o.fee);});if(mode==='full'){if(!Array.isArray(st.deposits)||!Array.isArray(st.bilans)||!st.checks||typeof st.checks!=='object'||!['A','B'].includes(st.scenario)||![7,9,11].includes(Number(st.rate))||!Number.isFinite(Number(st.dcaBase))||Number(st.dcaBase)<=0||!st.plan||typeof st.plan!=='object'||!st.quotes||typeof st.quotes!=='object')throw Error('Etat complet invalide ou champs manquants');st.deposits.forEach(function(x){if(!x||!peaValidDate(x.date)||x.amount===null||!Number.isFinite(Number(x.amount))||Number(x.amount)<=0)throw Error('Virement invalide');x.amount=Number(x.amount);});st.dcaBase=Number(st.dcaBase);['openDate'].forEach(function(k){if(st.plan[k]&&!peaValidDate(st.plan[k]))throw Error('Date de plan invalide');});['cycleStart','asOf'].forEach(function(k){if(st.plan[k])peaMonthIndex(st.plan[k]);});['marketValue','cash','totalDeposits','monthly'].forEach(function(k){if(st.plan[k]!==undefined&&st.plan[k]!==''&&(!Number.isFinite(Number(st.plan[k]))||Number(st.plan[k])<0))throw Error('Montant du plan invalide');});Object.keys(st.quotes).forEach(function(k){var v=st.quotes[k];if(v!==null&&v!==''&&(!Number.isFinite(Number(v))||Number(v)<=0))throw Error('Cours invalide');});}return {ok:true,mode:mode,state:JSON.parse(JSON.stringify(st)),error:null};}catch(e){return {ok:false,mode:null,state:null,error:e.message};}}
+function validateBackup(input){try{var d=typeof input==='string'?JSON.parse(input):input;if(!d||typeof d!=='object')throw Error('Fichier invalide');var mode=((d.format==='pea-full-v1'&&d.version===1)||(d.format==='pea-full-v2'&&d.version===2))?'full':(d.etat&&Array.isArray(d.etat.orders)?'legacy':null),st=mode==='full'?d.state:mode==='legacy'?{orders:d.etat.orders}:null;if(st){st=JSON.parse(JSON.stringify(st));peaNormalizeStoredState(st);}if(st&&st.sales!==undefined&&!Array.isArray(st.sales))throw Error('Liste des ventes invalide.');if(st&&Array.isArray(st.sales)&&st.sales.length&&typeof peaValidateSalesJournal!=='function')throw Error('Sauvegarde avec ventes : cette version ne sait pas encore les verifier.');if(!st||!Array.isArray(st.orders))throw Error('Liste des ordres absente');st.orders.forEach(function(o){if(!o||!['DCAM','PAEEM','PNAS','CEM'].includes(o.etf)||!peaValidDate(o.date)||!Number.isInteger(Number(o.qty))||Number(o.qty)<=0||o.total===null||!Number.isFinite(Number(o.total))||Number(o.total)<=0||!Number.isFinite(Number(o.price))||Number(o.price)<=0||(o.fee!==undefined&&o.fee!==null&&(!Number.isFinite(Number(o.fee))||Number(o.fee)<0)))throw Error('Ordre invalide');o.qty=Number(o.qty);o.price=Number(o.price);o.total=Number(o.total);if(o.fee!==undefined&&o.fee!==null)o.fee=Number(o.fee);});if(mode==='full'){if(!Array.isArray(st.deposits)||!Array.isArray(st.bilans)||!st.checks||typeof st.checks!=='object'||!['A','B'].includes(st.scenario)||![7,9,11].includes(Number(st.rate))||!Number.isFinite(Number(st.dcaBase))||Number(st.dcaBase)<=0||!st.plan||typeof st.plan!=='object'||!st.quotes||typeof st.quotes!=='object')throw Error('Etat complet invalide ou champs manquants');st.deposits.forEach(function(x){if(!x||!peaValidDate(x.date)||x.amount===null||!Number.isFinite(Number(x.amount))||Number(x.amount)<=0)throw Error('Virement invalide');x.amount=Number(x.amount);});st.dcaBase=Number(st.dcaBase);['openDate'].forEach(function(k){if(st.plan[k]&&!peaValidDate(st.plan[k]))throw Error('Date de plan invalide');});['cycleStart','asOf'].forEach(function(k){if(st.plan[k])peaMonthIndex(st.plan[k]);});['marketValue','cash','totalDeposits','monthly'].forEach(function(k){if(st.plan[k]!==undefined&&st.plan[k]!==''&&(!Number.isFinite(Number(st.plan[k]))||Number(st.plan[k])<0))throw Error('Montant du plan invalide');});Object.keys(st.quotes).forEach(function(k){var v=st.quotes[k];if(v!==null&&v!==''&&(!Number.isFinite(Number(v))||Number(v)<=0))throw Error('Cours invalide');});}return {ok:true,mode:mode,state:JSON.parse(JSON.stringify(st)),error:null};}catch(e){return {ok:false,mode:null,state:null,error:e.message};}}
 function previewLegacyState(raw){try{var d=typeof raw==='string'?JSON.parse(raw):raw;if(!d||!Array.isArray(d.orders))throw Error('Etat invalide');var st=Object.assign({deposits:[],bilans:[],checks:{},scenario:'A',rate:9,dcaBase:180,onboarded:false,plan:{},quotes:{}},JSON.parse(JSON.stringify(d)));return validateBackup({format:'pea-full-v1',version:1,state:st});}catch(e){return {ok:false,mode:null,state:null,error:e.message};}}
 function peaEl(id){return document.getElementById(id);}function peaText(id,s){var e=peaEl(id);if(e)e.textContent=s;}
 function peaCurrentPlan(){return S.plan&&typeof S.plan==='object'?S.plan:{};}
@@ -3356,7 +3385,12 @@ function peaConvertLegacy(){var os=S.orders.filter(function(o){return o.etf==='C
 function peaLegacyWarning(){return S.orders.some(function(o){return o.etf==='CEM';});}function peaHasUnknownFees(){return S.orders.some(function(o){return o.fee===undefined||o.fee===null;});}function peaValues(){return peaStats(S.orders,S.quotes||{});}
 save=function(){if(peaStorageGuard.blocked){alert('Enregistrement bloque : recuperez d abord les donnees illisibles.');return false;}try{peaWriteCurrentState(S);return true;}catch(e){if(!e.peaConflict)alert('Enregistrement impossible sur cet appareil.');return false;}};
 renderCycle=function(){var p=peaCurrentPlan(),d=new Date(),m=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'),c=null;try{if(p.cycleStart)c=peaCycleForDate(m,p.cycleStart);}catch(e){}if(!c){['k-next-etf','na2-etf','k-cycle'].forEach(function(id){peaText(id,'A configurer');});peaText('cycle-info','Indique le premier mois dans les parametres.');peaText('cycle-display','');return;}var label=c.cycle+' · '+c.etf,amt=p.monthly?fmtC(p.monthly):'A definir';['k-next-etf','na2-etf'].forEach(function(id){peaText(id,label);});['k-next-name','na2-name'].forEach(function(id){peaText(id,'Cycle theorique : comparer a l allocation');});['k-next-amt','na2-amt'].forEach(function(id){peaText(id,amt);});peaText('k-cycle','n°'+c.round);peaText('k-cycle-s',c.cycle+' / C10');peaText('cycle-round','Cycle theorique n°'+c.round);peaText('cycle-info','Ce mois : '+label+' ; plusieurs achats restent possibles.');var html='';for(var i=0;i<10;i++){var x=CYCLE_DEF[i];html+='<div class="cy '+x.type+(i===c.index?' active':'')+'"><div class="cy-p">'+x.pos+'</div><div class="cy-t">'+x.etf+'</div><div class="cy-d">'+(i===c.index?'Ce mois':'')+'</div></div>';}var el=peaEl('cycle-display');if(el)el.innerHTML=html;};
-renderCountdown=function(){peaText('k-countdown','a verifier');peaText('na2-cd','a verifier');};
+renderCountdown=function(){
+  var d=new Date(), mois=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  var n=(Array.isArray(S.orders)?S.orders:[]).filter(function(o){return o&&typeof o.date==='string'&&o.date.slice(0,7)===mois;}).length;
+  var statut=n===0?'Aucun achat ce mois':n===1?'1 achat ce mois':n+' achats ce mois';
+  peaText('k-countdown',statut);peaText('na2-cd',statut);
+};
 renderPRU=function(){var x=peaValues();['DCAM','PAEEM','PNAS'].forEach(function(k){var t=x[k],id=k.toLowerCase();peaText('pru-'+id,t.qty?t.pru.toFixed(3)+' €':'—');peaText('pru-'+id+'-s',t.qty+' parts · '+fmtC(t.cost));});peaText('pea-fee-warning',peaHasUnknownFees()?'Certains anciens ordres ne precisent pas leurs frais : PRU et solde a verifier.':'');};
 renderKPIs=function(){var total=S.orders.reduce(function(a,o){return a+(Number(o.total)||0);},0),x=peaValues(),keys=['DCAM','PAEEM','PNAS'],missing=keys.some(function(k){return x[k].value===null;})||peaLegacyWarning();peaText('k-inv',fmtC(total));peaText('k-inv-s',S.orders.length+' ordre(s)');if(missing||!S.orders.length){peaText('k-pat','—');peaText('k-pat-s',peaLegacyWarning()?'Ancien ETF a verifier':'Cours a renseigner');peaText('k-pv','—');return;}var val=keys.reduce(function(a,k){return a+x[k].value;},0),pv=val-total;peaText('k-pat',fmtC(val));peaText('k-pat-s','Titres, hors especes');peaText('k-pv',(pv>=0?'+':'')+fmtC(pv));};
 renderHealthScore=function(){
@@ -3380,8 +3414,8 @@ renderHealthScore=function(){
 renderCeiling=function(){var dep=(S.deposits||[]).reduce(function(a,d){return a+(Number(d.amount)||0);},0);peaText('ceil-amount',fmtC(dep));peaText('ceil-sub','Versements renseignes · reste theorique '+fmtC(Math.max(0,150000-dep)));var e=peaEl('ceil-fill');if(e)e.style.width=Math.min(100,100*dep/150000)+'%';};
 renderRealAlloc=function(){var wrap=peaEl('alloc-real-wrap');if(!wrap)return;var st=peaValues(),keys=['DCAM','PAEEM','PNAS'];if(peaLegacyWarning()){wrap.textContent='Ancien ETF CEM a verifier avant le calcul.';return;}if(keys.some(function(k){return st[k].value===null;})){wrap.textContent='Renseigne le cours de chaque ETF detenu.';return;}var total=keys.reduce(function(a,k){return a+st[k].value;},0);if(!total){wrap.textContent='Aucune valorisation disponible.';return;}wrap.innerHTML=keys.map(function(k,i){var pct=100*st[k].value/total,target=[60,30,10][i],delta=pct-target;return '<div class="alloc-row"><span>'+k+' · cible '+target+' %</span><span>'+pct.toFixed(2)+' % ('+(delta>=0?'+':'')+delta.toFixed(2)+' pts)</span></div>';}).join('')+'<div style="font-size:11px;color:var(--muted)">Sur les titres uniquement ; especes separees.</div>';};
 updateVal=function(){var q={},st=peaValues(),ok=true;['DCAM','PAEEM','PNAS'].forEach(function(k){var e=peaEl('p-'+k.toLowerCase()),v=e?Number(e.value):0;if(st[k].qty&&(!v||v<=0))ok=false;q[k]=v>0?v:null;});if(peaLegacyWarning()){alert('Verifie les anciens ordres CEM.');return;}if(!ok){alert('Renseigne le cours de chaque ETF detenu.');return;}var previousQuotes=S.quotes;S.quotes=q;if(!save()){S.quotes=previousQuotes;return;}renderAll();var e=peaEl('val-res');if(e)e.style.display='block';peaText('val-txt','Cours enregistres sur cet appareil ; aucune actualisation automatique.');};
-saveOrder=function(){var etf=peaEl('o-etf').value,cycle=peaEl('o-cycle').value,qty=peaEl('o-qty').value,price=peaEl('o-price').value,date=peaEl('o-date').value,note=peaEl('o-note').value.trim(),fee=peaEl('o-fee').value.trim(),net=peaEl('o-net').value.trim(),edit=peaEl('edit-id').value,total;if(!date){alert('Indique une date.');return;}try{if(fee===''&&net==='')throw Error('Indique les frais, meme nuls, ou le montant net.');if((fee!==''&&!peaValidMoneyInput(fee))||(net!==''&&!peaValidMoneyInput(net)))throw Error('Frais et montant net : indique un montant positif avec au maximum deux decimales (ex. 0,02).');total=peaOrderTotal(qty,price,fee,net);if(fee!==''&&net!==''&&Math.abs(total-peaOrderTotal(qty,price,fee))>0.005&&!confirm('Le montant net ne correspond pas au prix et aux frais saisis. Conserver le montant net indique ?'))return;}catch(e){alert(e.message);return;}var o={etf:etf,cycle:cycle,qty:Number(qty),price:Number(String(price).replace(',','.')),date:date,note:note,total:total,fee:fee===''?null:Number(String(fee).replace(',','.')),id:edit?Number(edit):Date.now()},beforeOrders=S.orders.slice();if(edit){var idx=S.orders.findIndex(function(x){return String(x.id)===String(edit);});if(idx<0){alert('Ordre introuvable');return;}S.orders[idx]=o;}else S.orders.push(o);S.orders.sort(function(a,b){return a.date.localeCompare(b.date);});if(!save()){S.orders=beforeOrders;return;}if(edit)cancelEdit();['o-qty','o-price','o-note','o-fee','o-net'].forEach(function(id){peaEl(id).value='';});renderAll();peaUpdateOrderPreview();};
-var peaOriginalEdit=editOrder;editOrder=function(id){peaOriginalEdit(id);var o=S.orders.find(function(x){return x.id===id;});peaEl('o-fee').value=o&&o.fee!=null?o.fee:'';peaEl('o-net').value=o&&o.total!=null?o.total:'';};
+saveOrder=function(){var etf=peaEl('o-etf').value,cycle=peaEl('o-cycle').value,qty=peaEl('o-qty').value,price=peaEl('o-price').value,date=peaEl('o-date').value,note=peaEl('o-note').value.trim(),fee=peaEl('o-fee').value.trim(),net=peaEl('o-net').value.trim(),edit=peaEl('edit-id').value,total;if(!date){alert('Indique une date.');return;}try{if(fee===''&&net==='')throw Error('Indique les frais, meme nuls, ou le montant net.');if((fee!==''&&!peaValidMoneyInput(fee))||(net!==''&&!peaValidMoneyInput(net)))throw Error('Frais et montant net : indique un montant positif avec au maximum deux decimales (ex. 0,02).');total=peaOrderTotal(qty,price,fee,net);var original=edit?S.orders.find(function(x){return String(x.id)===String(edit);}):null;var netExplicit=peaOrderNetEdit&&peaOrderNetEdit.id===String(edit)&&peaOrderNetEdit.explicit;if(original&&fee===''&&net!==''&&(Number(qty)!==Number(original.qty)||Number(String(price).replace(',','.'))!==Number(original.price))&&Number(String(net).replace(',','.'))===Number(original.total)&&!netExplicit&&!confirm('Les parts ou le prix ont change, mais les frais restent inconnus et le montant net est celui de l ancien achat. Conserver ce montant net ?'))return;if(fee!==''&&net!==''&&Math.abs(total-peaOrderTotal(qty,price,fee,undefined,true))>0.005&&!confirm('Le montant net ne correspond pas au prix et aux frais saisis. Conserver le montant net indique ?'))return;}catch(e){alert(e.message);return;}var o={etf:etf,cycle:cycle,qty:Number(qty),price:Number(String(price).replace(',','.')),date:date,note:note,total:total,fee:fee===''?null:Number(String(fee).replace(',','.')),id:edit?Number(edit):Date.now()},beforeOrders=S.orders.slice();if(edit){var idx=S.orders.findIndex(function(x){return String(x.id)===String(edit);});if(idx<0){alert('Ordre introuvable');return;}S.orders[idx]=o;}else S.orders.push(o);S.orders.sort(function(a,b){return a.date.localeCompare(b.date);});if(!save()){S.orders=beforeOrders;return;}if(edit)cancelEdit();['o-qty','o-price','o-note','o-fee','o-net'].forEach(function(id){peaEl(id).value='';});renderAll();peaUpdateOrderPreview();};
+var peaOriginalEdit=editOrder;editOrder=function(id){peaOriginalEdit(id);var o=S.orders.find(function(x){return x.id===id;});peaEl('o-fee').value=o&&o.fee!=null?o.fee:'';peaEl('o-net').value=o&&o.total!=null?o.total:'';peaOrderNetEdit=o?{id:String(o.id),explicit:false}:null;};
 calcProj=function(sc,rate){var r=peaProjectionFor(sc,rate,0);return r?r.points.map(function(p){return Math.round(p.total);}):[];};
 calcInvested=function(sc){var r=peaProjectionFor(sc,9,0);return r?r.points.map(function(p){return Math.round(p.peaDeposits+p.ctoDeposits);}):[];};
 calcProjCustom=function(extra,rate){var r=peaProjectionFor(S.scenario,rate,extra);return r?Math.round(r.total):0;};calcRealTraj=function(){return null;};
@@ -3803,7 +3837,7 @@ renderKPIs = function() {
     }
     for (var j = 0; j < 4; j++) {
       var k = ['marketValue','cash','totalDeposits','monthly'][j], n = uxNumber(p[k]);
-      if (n === null || n < 0 || (k === 'monthly' && n <= 0)) { alert('Vérifie les montants : ils doivent être positifs ou nuls, avec un DCA strictement positif.'); return; }
+      if (!peaValidMoneyInput(p[k]) || n === null || n < 0 || (k === 'monthly' && n <= 0) || !Number.isSafeInteger(Math.round(n * 100))) { alert('Vérifie les montants : indique au maximum deux décimales, et un DCA strictement positif.'); return; }
       p[k] = String(n);
     }
     var oldPlan = S.plan, oldDca = S.dcaBase;
@@ -3863,7 +3897,12 @@ document.addEventListener('DOMContentLoaded', init);
   var originalRenderAll=renderAll, chart=null;
   function draw(){
     var p=peaCurrentPlan(), cash=peaEl('dashboard-cash'), date=peaEl('dashboard-cash-date');
-    if(cash){var hasCash=p.cash!==''&&p.cash!==null&&p.cash!==undefined&&Number.isFinite(Number(p.cash))&&p.asOf;cash.textContent=hasCash?fmtC(Number(p.cash)):'—';if(date)date.textContent=hasCash?'Relevé saisi : '+p.asOf:'Situation à renseigner';}
+    // Les trois montants du cockpit proviennent du meme releve manuel ; les cours
+    // saisis restent distincts et continuent d'alimenter performance et allocation.
+    var hasTitles=p.marketValue!==''&&p.marketValue!==null&&p.marketValue!==undefined&&Number.isFinite(Number(p.marketValue))&&Number(p.marketValue)>=0&&p.asOf;
+    peaText('k-pat',hasTitles?fmtC(Number(p.marketValue)):'—');
+    peaText('k-pat-s',hasTitles?'Relevé · '+p.asOf:'Relevé à renseigner');
+    if(cash){var hasCash=p.cash!==''&&p.cash!==null&&p.cash!==undefined&&Number.isFinite(Number(p.cash))&&Number(p.cash)>=0&&p.asOf;cash.textContent=hasCash?fmtC(Number(p.cash)):'—';if(date)date.textContent=hasCash?'Relevé saisi : '+p.asOf:'Situation à renseigner';}
     var pv=peaEl('k-pv');if(pv){var val=peaValues(), keys=['DCAM','PAEEM','PNAS'];var valid=S.orders.length&&!peaLegacyWarning()&&keys.every(function(k){return val[k].value!==null;});if(valid){var market=keys.reduce(function(n,k){return n+val[k].value;},0);var costs=S.orders.reduce(function(n,o){return n+(Number(o.total)||0);},0);pv.className='kv '+(market-costs<0?'red':'green');}else pv.className='kv';}
     var donut=peaEl('dashboard-allocation-donut');if(donut){var x=peaValues(), kk=['DCAM','PAEEM','PNAS'], usable=!peaLegacyWarning()&&kk.every(function(k){return x[k].value!==null;}), vals=kk.map(function(k){return x[k].value||0;}), sum=vals.reduce(function(a,b){return a+b;},0);donut.hidden=!usable||!sum;peaText('pea-donut-total',usable&&sum?fmtC(sum):'');if(usable&&sum){var a=100*vals[0]/sum,b=100*(vals[0]+vals[1])/sum;donut.style.background='conic-gradient(#24272b 0% '+a+'%,#d78c0c '+a+'% '+b+'%,#bfc5cb '+b+'% 100%)';}}
     var canvas=peaEl('dashboard-invest-chart'),wrap=peaEl('dashboard-chart-wrap'),empty=peaEl('dashboard-chart-empty');if(!canvas||!wrap||!empty)return;
@@ -3975,7 +4014,7 @@ function ledger(buys,sales,prices){
  events.sort(function(a,b){return a.date.localeCompare(b.date)||(a.kind==='buy'?-1:1);});
  var types={};events.forEach(function(ev){var k=ev.date+'|'+ev.etf;types[k]=types[k]||{};types[k][ev.kind]=true;if(types[k].buy&&types[k].sale)throw Error('Un achat et une vente du meme ETF le meme jour exigent une chronologie precise.');});
  events.forEach(function(ev){var x=result[ev.etf];if(ev.kind==='buy'){x.qty+=ev.qty;x.cost+=ev.total;return;}if(ev.qty>x.qty)throw Error('Vente superieure au nombre de parts detenues a cette date pour '+ev.etf+'.');var cost=x.cost*ev.qty/x.qty;var gain=ev.total-cost;x.qty-=ev.qty;x.cost-=cost;if(!x.qty)x.cost=0;x.realized+=gain;sold[ev.index]={cost:cost,gain:gain};});
- KEYS.forEach(function(k){var x=result[k],p=prices&&Number(prices[k]);x.pru=x.qty?x.cost/x.qty:null;x.value=x.qty===0?0:(Number.isFinite(p)&&p>0?x.qty*p:null);});
+ KEYS.forEach(function(k){var x=result[k],p=prices&&Number(prices[k]);x.pru=x.qty?x.cost/x.qty:null;x.value=x.qty===0?0:(Number.isFinite(p)&&p>0?peaExactMarketValue(x.qty,p):null);});
  return {positions:result,sales:sold};
 }
 window.peaSalesLedger=ledger;window.peaValidateSalesJournal=ledger;
