@@ -1110,6 +1110,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 #page-projections .page-hero::after,#page-dca .page-hero::after,#page-bilan .page-hero::after,#page-export .page-hero::after,#page-etfs .page-hero::after,#page-checklist .page-hero::after{content:"";position:absolute;top:12%;right:-72px;width:96px;height:76%;border:1px solid rgba(246,175,42,.38);border-radius:50%;transform:none;background:none;pointer-events:none}
 @media(max-width:360px){#page-dashboard .hero-imm .pea-da-gauge{width:26px}#page-projections .page-hero::after,#page-dca .page-hero::after,#page-bilan .page-hero::after,#page-export .page-hero::after,#page-etfs .page-hero::after,#page-checklist .page-hero::after{right:-78px}}
 </style>
+<style id="pea-horizon-style">#pea-horizon-summary[hidden],#pea-simulation-en-cours[hidden],#pea-composition-simulation[hidden]{display:none!important}</style>
 </head>
 <body>
 
@@ -1329,7 +1330,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
   </div>
 
   <!-- Composition a 54 ans -->
-  <div class="cc">
+  <div class="cc" id="pea-composition-simulation">
     <div class="sh"><div class="st">Composition · simulation</div><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)" id="comp-scn">Sc. A &#xB7; 9 %/an</span></div>
     <div class="comp-big" id="comp-obj">&#x2014;</div>
     <div class="comp-bar"><div class="v" id="comp-v" style="width:0%"></div><div class="i" id="comp-i" style="width:0%"></div></div>
@@ -1519,6 +1520,12 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
     <div class="hp-sub">Simulation indicative</div>
   </div>
 
+  <div class="cc" id="pea-horizon-summary" hidden role="status" aria-live="polite">
+    <div class="st" id="pea-horizon-title"></div>
+    <p id="pea-horizon-description" style="font-size:13px;line-height:1.5;color:var(--txt2)"></p>
+    <div class="kv" id="pea-horizon-amount"></div>
+  </div>
+  <div id="pea-simulation-en-cours">
   <div class="sc-grid">
     <div class="sc-c" onclick="selRate(7)" id="sc-7"><div class="sc-l">Prudent</div><div class="sc-v v7" id="s7v">&#x2014;</div><div class="sc-s">7% / an</div></div>
     <div class="sc-c active-sc" onclick="selRate(9)" id="sc-9"><div class="sc-l">Median</div><div class="sc-v v9" id="s9v">&#x2014;</div><div class="sc-s">9% / an</div></div>
@@ -1594,6 +1601,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
       </div>
     </div>
   </div>
+  </div><!-- pea-simulation-en-cours -->
 </section>
 
 <!-- BILAN -->
@@ -2141,6 +2149,14 @@ function addDeposit() {
   var amt = Number(amountText.replace(',', '.'));
   if (!Number.isFinite(amt) || amt <= 0 || !Number.isSafeInteger(Math.round(amt * 100))) { alert('Le virement doit etre un montant positif valide.'); return; }
   amt = Math.round(amt * 100) / 100;
+  // Les versements du journal peuvent etre incomplets : l'alerte n'affirme
+  // jamais connaitre tous les versements reels, ni la marge fiscale exacte.
+  var recordedCents = (S.deposits || []).reduce(function(sum, entry){
+    var value = entry && Number(entry.amount);
+    return sum + (Number.isFinite(value) && value > 0 ? Math.round(value * 100) : 0);
+  }, 0);
+  if (recordedCents + Math.round(amt * 100) > 15000000 &&
+      !confirm('Attention : ce virement porterait les versements enregistres au-dessus de 150 000 euros. Ce calcul utilise uniquement les virements presents dans l application : verifie le total reel de ton PEA. Enregistrer ce mouvement quand meme ?')) return;
   if (!S.deposits) S.deposits = [];
   var beforeDeposits = S.deposits.slice();
   S.deposits.push({ date: date, amount: amt, note: noteEl ? noteEl.value.trim() : '', id: Date.now() });
@@ -3051,7 +3067,7 @@ function generateExport() {
   try { if(plan.cycleStart) cycle = peaCycleForDate(month, plan.cycleStart); } catch(e) { cycle = null; }
   var cycleLine = cycle ? cycle.cycle + ' -> ' + cycle.etf + ' (' + month + ', cycle ' + cycle.round + ')' : 'A configurer ou debut du plan non atteint';
   var simulation = peaProjectionFor('A',9,0);
-  var objStr = simulation ? fmtC(simulation.total) : 'A configurer';
+  var objStr = simulation && simulation.terminalSnapshot ? 'Dernier releve du plan : ' + fmtC(simulation.total) : simulation ? fmtC(simulation.total) : peaHorizonState() === 'after' ? 'Plan termine : valeur a l echeance non disponible' : 'A configurer';
   var orders = S.orders || [], keys = ['DCAM','PAEEM','PNAS'];
   var purchaseTotal = orders.reduce(function(a,o){return a + (Number(o.total)||0);},0);
   var n = dcaOrders().length, pos=peaValues(), PRU = {};
@@ -3096,7 +3112,7 @@ function generateExport() {
     +'DCA futur renseigne : '+(plan.monthly?fmtC(plan.monthly)+'/mois':'A configurer')+'\n'
     +'Cycle mensuel theorique C1->C10 ; plusieurs achats possibles par mois.\n'
     +'Courtier : Fortuneo PEA ; verifier les frais applicables.\n'
-    +'Simulation indicative scenario A 9%/an : '+objStr+' (PEA et hors PEA le cas echeant).\n\n'
+    +(simulation && simulation.terminalSnapshot ? 'Dernier releve du plan, sans simulation future : '+fmtC(simulation.total)+'.' : peaHorizonState() === 'after' ? 'Plan de 30 ans termine : valeur historique a l echeance non disponible.' : 'Simulation indicative scenario A 9%/an : '+objStr+' (PEA et hors PEA le cas echeant).')+'\n\n'
     +'--------------------------------------------------\nSITUATION SAISIE\n--------------------------------------------------\n'
     +'Total des achats nets enregistres : '+fmtC(purchaseTotal)+'\n'
     +'Cout des positions restantes : '+fmtC(inv)+'\n'
@@ -3379,7 +3395,7 @@ function peaCurrentPlan(){return S.plan&&typeof S.plan==='object'?S.plan:{};}
 function peaDisplayPlan(){var p=peaCurrentPlan();['openDate','cycleStart','asOf','marketValue','cash','totalDeposits','monthly'].forEach(function(k){var e=peaEl('plan-'+k);if(e)e.value=p[k]===undefined?'':p[k];});}
 function peaSavePlan(){var p={};['openDate','cycleStart','asOf','marketValue','cash','totalDeposits','monthly'].forEach(function(k){p[k]=peaEl('plan-'+k).value;});if(!p.openDate||!p.cycleStart||!p.asOf||p.marketValue===''||!p.monthly||p.cash===''||p.totalDeposits===''){alert('Complete tous les parametres du plan.');return;}try{peaMonthIndex(p.cycleStart);peaMonthIndex(p.asOf);if(Number(p.marketValue)<0||Number(p.cash)<0||Number(p.monthly)<=0)throw Error('Montants invalides');}catch(e){alert(e.message);return;}S.plan=p;S.dcaBase=Number(p.monthly);save();renderAll();updateScenUI();updateRentes();buildProjChart();updateSim();peaText('plan-status','Parametres enregistres sur cet appareil.');}
 function peaProjectionConfig(sc,rate,extra){var p=peaCurrentPlan();if(!p.cycleStart||!p.asOf||p.marketValue===''||p.marketValue===undefined||p.cash===''||p.cash===undefined||p.totalDeposits===''||p.totalDeposits===undefined||!p.monthly)return null;try{var start=peaMonthIndex(p.cycleStart),asof=peaMonthIndex(p.asOf);return {startMonth:peaMonthString(asof+1),endMonth:peaMonthString(start+360),phase2Month:peaMonthString(start+60),phase3Month:peaMonthString(start+120),marketValue:Number(p.marketValue),cash:Number(p.cash),deposits:Number(p.totalDeposits),monthly:Number(p.monthly)+(Number(extra)||0),scenario:sc,rate:rate,ceiling:150000};}catch(e){return null;}}
-function peaProjectionFor(sc,rate,extra){var p=peaProjectionConfig(sc,rate,extra);if(!p)return null;try{return peaProjection(p);}catch(e){return null;}}
+function peaProjectionFor(sc,rate,extra){var p=peaProjectionConfig(sc,rate,extra);if(!p)return null;try{if(peaMonthIndex(p.startMonth)===peaMonthIndex(p.endMonth)){if(peaMonthIndex(peaLocalToday().slice(0,7))<peaMonthIndex(p.endMonth)-1)return null;var pea=Number(p.marketValue)+Number(p.cash), dep=Number(p.deposits);if(!Number.isFinite(pea)||pea<0||!Number.isFinite(dep)||dep<0)return null;return {terminalSnapshot:true,pea:pea,cto:null,cash:Number(p.cash),total:pea,peaDeposits:dep,ctoDeposits:null,invested:dep,points:[]};}return peaProjection(p);}catch(e){return null;}}
 function peaLegacyPreview(){var raw;try{raw=localStorage.getItem('pea_design_etape1_v4');}catch(e){alert('Acces au stockage impossible.');return;}if(!raw){alert('Aucune ancienne version trouvee.');return;}var v=previewLegacyState(raw);if(!v.ok){alert('Ancien etat non lisible : '+v.error);return;}if(!confirm('Ancien etat : '+v.state.orders.length+' ordres et '+v.state.deposits.length+' virements. Les anciens ordres CEM restent a verifier. Reprendre dans cette version ? L ancienne reste conservee.'))return;S=Object.assign({},S,v.state);S.plan=S.plan||{};save();peaDisplayPlan();renderAll();updateScenUI();updateRentes();buildProjChart();}
 function peaConvertLegacy(){var os=S.orders.filter(function(o){return o.etf==='CEM';});if(!os.length){alert('Aucun ancien ordre CEM a verifier.');return;}if(!confirm(os.length+' ancien(s) ordre(s) CEM : confirme uniquement s ils correspondent tous au PNAS.'))return;var previousOrders=S.orders;S.orders=S.orders.map(function(o){return o.etf==='CEM'?Object.assign({},o,{etf:'PNAS'}):o;});if(!save()){S.orders=previousOrders;return;}renderAll();}
 function peaLegacyWarning(){return S.orders.some(function(o){return o.etf==='CEM';});}function peaHasUnknownFees(){return S.orders.some(function(o){return o.fee===undefined||o.fee===null;});}function peaValues(){return peaStats(S.orders,S.quotes||{});}
@@ -3411,7 +3427,7 @@ renderHealthScore=function(){
   else if(missing.length) peaText('suivi-allocation','Non calculable : cours manquants.');
   else peaText('suivi-allocation','Calculable avec les cours saisis.');
 };
-renderCeiling=function(){var dep=(S.deposits||[]).reduce(function(a,d){return a+(Number(d.amount)||0);},0);peaText('ceil-amount',fmtC(dep));peaText('ceil-sub','Versements renseignes · reste theorique '+fmtC(Math.max(0,150000-dep)));var e=peaEl('ceil-fill');if(e)e.style.width=Math.min(100,100*dep/150000)+'%';};
+renderCeiling=function(){var dep=(S.deposits||[]).reduce(function(a,d){return a+(Number(d.amount)||0);},0),cents=Math.round(dep*100);peaText('ceil-amount',fmtC(dep));peaText('ceil-sub',cents>15000000?'Plafond depasse selon les virements enregistres : a verifier':cents===15000000?'Plafond atteint selon les virements enregistres : a verifier':'Reste indicatif si journal complet : '+fmtC(Math.max(0,150000-dep)));var e=peaEl('ceil-fill');if(e)e.style.width=Math.min(100,100*dep/150000)+'%';};
 renderRealAlloc=function(){var wrap=peaEl('alloc-real-wrap');if(!wrap)return;var st=peaValues(),keys=['DCAM','PAEEM','PNAS'];if(peaLegacyWarning()){wrap.textContent='Ancien ETF CEM a verifier avant le calcul.';return;}if(keys.some(function(k){return st[k].value===null;})){wrap.textContent='Renseigne le cours de chaque ETF detenu.';return;}var total=keys.reduce(function(a,k){return a+st[k].value;},0);if(!total){wrap.textContent='Aucune valorisation disponible.';return;}wrap.innerHTML=keys.map(function(k,i){var pct=100*st[k].value/total,target=[60,30,10][i],delta=pct-target;return '<div class="alloc-row"><span>'+k+' · cible '+target+' %</span><span>'+pct.toFixed(2)+' % ('+(delta>=0?'+':'')+delta.toFixed(2)+' pts)</span></div>';}).join('')+'<div style="font-size:11px;color:var(--muted)">Sur les titres uniquement ; especes separees.</div>';};
 updateVal=function(){var q={},st=peaValues(),ok=true;['DCAM','PAEEM','PNAS'].forEach(function(k){var e=peaEl('p-'+k.toLowerCase()),v=e?Number(e.value):0;if(st[k].qty&&(!v||v<=0))ok=false;q[k]=v>0?v:null;});if(peaLegacyWarning()){alert('Verifie les anciens ordres CEM.');return;}if(!ok){alert('Renseigne le cours de chaque ETF detenu.');return;}var previousQuotes=S.quotes;S.quotes=q;if(!save()){S.quotes=previousQuotes;return;}renderAll();var e=peaEl('val-res');if(e)e.style.display='block';peaText('val-txt','Cours enregistres sur cet appareil ; aucune actualisation automatique.');};
 saveOrder=function(){var etf=peaEl('o-etf').value,cycle=peaEl('o-cycle').value,qty=peaEl('o-qty').value,price=peaEl('o-price').value,date=peaEl('o-date').value,note=peaEl('o-note').value.trim(),fee=peaEl('o-fee').value.trim(),net=peaEl('o-net').value.trim(),edit=peaEl('edit-id').value,total;if(!date){alert('Indique une date.');return;}try{if(fee===''&&net==='')throw Error('Indique les frais, meme nuls, ou le montant net.');if((fee!==''&&!peaValidMoneyInput(fee))||(net!==''&&!peaValidMoneyInput(net)))throw Error('Frais et montant net : indique un montant positif avec au maximum deux decimales (ex. 0,02).');total=peaOrderTotal(qty,price,fee,net);var original=edit?S.orders.find(function(x){return String(x.id)===String(edit);}):null;var netExplicit=peaOrderNetEdit&&peaOrderNetEdit.id===String(edit)&&peaOrderNetEdit.explicit;if(original&&fee===''&&net!==''&&(Number(qty)!==Number(original.qty)||Number(String(price).replace(',','.'))!==Number(original.price))&&Number(String(net).replace(',','.'))===Number(original.total)&&!netExplicit&&!confirm('Les parts ou le prix ont change, mais les frais restent inconnus et le montant net est celui de l ancien achat. Conserver ce montant net ?'))return;if(fee!==''&&net!==''&&Math.abs(total-peaOrderTotal(qty,price,fee,undefined,true))>0.005&&!confirm('Le montant net ne correspond pas au prix et aux frais saisis. Conserver le montant net indique ?'))return;}catch(e){alert(e.message);return;}var o={etf:etf,cycle:cycle,qty:Number(qty),price:Number(String(price).replace(',','.')),date:date,note:note,total:total,fee:fee===''?null:Number(String(fee).replace(',','.')),id:edit?Number(edit):Date.now()},beforeOrders=S.orders.slice();if(edit){var idx=S.orders.findIndex(function(x){return String(x.id)===String(edit);});if(idx<0){alert('Ordre introuvable');return;}S.orders[idx]=o;}else S.orders.push(o);S.orders.sort(function(a,b){return a.date.localeCompare(b.date);});if(!save()){S.orders=beforeOrders;return;}if(edit)cancelEdit();['o-qty','o-price','o-note','o-fee','o-net'].forEach(function(id){peaEl(id).value='';});renderAll();peaUpdateOrderPreview();};
@@ -3592,7 +3608,7 @@ handleImport = function(event) {
 function peaActiveProjection() { return peaProjectionFor(S.scenario, Number(S.rate) || 9, 0); }
 function peaRefreshProjectionDetails() {
   var rate = Number(S.rate) || 9, result = peaActiveProjection();
-  peaText('pea-projection-breakdown', result
+  peaText('pea-projection-breakdown', result && result.terminalSnapshot ? 'Dernier releve du plan ; aucune projection future. La situation hors PEA n est pas connue.' : result
     ? 'Hypothese ' + rate + ' % : PEA ' + fmtC(result.pea) + ' ; hors PEA hypothetique ' + fmtC(result.cto) + '. Valeurs avant fiscalite ; le compte hors PEA n\'est pas suppose existant.'
     : 'Configure les parametres pour distinguer les projections PEA et hors PEA.');
   peaText('comp-scn', 'Sc. ' + S.scenario + ' · ' + rate + ' %/an');
@@ -3832,8 +3848,8 @@ renderKPIs = function() {
     if (!peaValidDate(p.openDate)) { alert('La date du premier versement est invalide.'); return; }
     var start = uxMonth(p.cycleStart), asof = uxMonth(p.asOf), opened = uxMonth(p.openDate);
     if (start === null || asof === null || opened === null) { alert('Vérifie les mois du plan.'); return; }
-    if (start < opened || asof < opened || asof < start - 1 || asof >= start + 360) {
-      alert('Vérifie l’ordre des dates : premier versement, début du DCA et mois de référence, dans la durée du plan.'); return;
+    if (start < opened || asof < opened || asof < start - 1) {
+      alert('Vérifie l’ordre des dates : premier versement, début du DCA et mois de référence.'); return;
     }
     for (var j = 0; j < 4; j++) {
       var k = ['marketValue','cash','totalDeposits','monthly'][j], n = uxNumber(p[k]);
@@ -4270,6 +4286,27 @@ validateBackup = function(input) {
 document.addEventListener('DOMContentLoaded',function(){
   try { if (localStorage.getItem('pea_v4') !== null) { if (peaStorageGuard.blocked) peaEl('pea-v4-guard-export').style.display='block'; else if (!S.peaRecoveredProductionV4) peaEl('pea-v4-detect').style.display='block'; } } catch (_) {}
 });
+</script>
+
+<script id="pea-horizon-state">
+function peaHorizonState(){
+ var p=peaCurrentPlan();try{var start=peaMonthIndex(p.cycleStart), at=peaMonthIndex(p.asOf), today=peaMonthIndex(peaLocalToday().slice(0,7));if(at>today)return 'future';if(at===start+359)return 'last';if(at>=start+360)return 'after';return 'active';}catch(e){return 'unknown';}
+}
+function peaRefreshHorizon(){
+ var p=peaCurrentPlan(),state=peaHorizonState(),terminal=state==='last'||state==='after',summary=peaEl('pea-horizon-summary'),projection=peaEl('pea-simulation-en-cours'),composition=peaEl('pea-composition-simulation');
+ if(summary)summary.hidden=!terminal;if(projection)projection.hidden=terminal;if(composition)composition.hidden=terminal;
+ if(!terminal)return;
+ peaText('pea-horizon-title',state==='last'?'Dernier relevé du plan de 30 ans':'Plan de 30 ans terminé');
+ peaText('pea-horizon-description',state==='last'?'Relevé du mois '+p.asOf+'. Aucun versement ni rendement futur n’est ajouté. La date exacte du relevé dans le mois n’est pas connue.':'Relevé postérieur au plan ('+p.asOf+'). La valeur historique à l’échéance ne peut pas être déduite de ce relevé.');
+ var market=p.marketValue!==''&&p.marketValue!==null&&p.marketValue!==undefined?Number(p.marketValue):NaN,cash=p.cash!==''&&p.cash!==null&&p.cash!==undefined?Number(p.cash):NaN;
+ peaText('pea-horizon-amount',Number.isFinite(market)&&market>=0&&Number.isFinite(cash)&&cash>=0?(state==='last'?'Valeur du relevé : ':'Valeur du relevé postérieur : ')+fmtC(market+cash):'Relevé à renseigner');
+}
+(function(){
+ var cycle=renderAll;renderAll=function(){var r=cycle.apply(this,arguments);peaRefreshHorizon();return r;};
+ var update=updateScenUI;updateScenUI=function(){var r=update.apply(this,arguments);peaRefreshHorizon();return r;};
+ var chart=buildProjChart;buildProjChart=function(){var state=peaHorizonState();if(state==='last'||state==='after'){if(projChart){projChart.destroy();projChart=null;}peaRefreshHorizon();return;}var r=chart.apply(this,arguments);peaRefreshHorizon();return r;};
+ document.addEventListener('DOMContentLoaded',peaRefreshHorizon);
+})();
 </script>
 </body>
 </html>
