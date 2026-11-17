@@ -1389,7 +1389,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
  <label>DCA futur mensuel (€)<input class="fi" type="number" step="0.01" id="plan-monthly"></label>
  </div><button class="btn" onclick="peaSavePlan()">Enregistrer les param&#xE8;tres</button><div id="plan-status"></div>
  <button class="btn-o" onclick="peaExportProductionV4()">Sauvegarder les donn&#xE9;es de l'ancienne application</button> <button class="btn-o" onclick="peaRecoverProductionV4()">Reprendre les donn&#xE9;es de l'ancienne application</button><p>La sauvegarde compl&#xE8;te doit d'abord &#xEA;tre t&#xE9;l&#xE9;charg&#xE9;e et v&#xE9;rifi&#xE9;e.</p>
- <button class="btn-o" onclick="peaLegacyPreview()">Reprendre les anciennes donn&#xE9;es</button> <button class="btn-o" onclick="peaConvertLegacy()">V&#xE9;rifier les anciens ordres CEM</button>
+ <button class="btn-o" onclick="peaLegacyPreview()">Reprendre les anciennes donn&#xE9;es</button> <button class="btn-o" onclick="peaConvertLegacy()">V&#xE9;rifier les anciennes lignes</button>
  <button class="btn-o" onclick="peaExportRecoveryBackup()">Exporter la sauvegarde avant remplacement</button>
  <p id="pea-legacy-warning" style="color:#f87171"></p><p id="pea-fee-warning" style="color:#f87171"></p>
 </div>
@@ -1456,6 +1456,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
         <label class="fl">Cycle</label>
         <select class="fi" id="o-cycle" onchange="onCycleChange()">
           <option value="C0">C0 &#xB7; Apport exceptionnel (hors DCA)</option>
+          <option value="">Non attribu&#xE9;</option>
           <option value="C1">C1 &#xB7; DCAM</option>
           <option value="C2">C2 &#xB7; PAEEM</option>
           <option value="C3">C3 &#xB7; DCAM</option>
@@ -1660,6 +1661,21 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 <!-- EXPORT -->
 <section class="page" id="page-export">
   <h1 class="pea-section-title">Export</h1>
+  <div class="cc" id="pea-backup-iphone-card">
+    <div class="st">Sauvegarde complète</div>
+    <p>Conserve une copie de tes données avant de modifier ton historique. Le rapport ci-dessous est séparé de cette sauvegarde.</p>
+    <div style="display:grid;gap:10px;margin-top:12px">
+      <button class="btn" type="button" onclick="peaBackupTelecharger()">Télécharger la sauvegarde JSON</button>
+      <button class="btn-o" type="button" onclick="peaBackupAfficher()">Afficher le texte de sauvegarde</button>
+    </div>
+    <div id="pea-backup-text-wrap" style="display:none;margin-top:12px">
+      <label for="pea-backup-text">Texte complet de la sauvegarde</label>
+      <textarea id="pea-backup-text" class="fi" rows="7" readonly spellcheck="false" style="width:100%;margin-top:6px"></textarea>
+      <button class="btn-o" type="button" onclick="peaBackupSelectionner()" style="margin-top:8px">Sélectionner le texte</button>
+      <p>Après sélection, utilise « Copier » sur ton iPhone. Ce texte contient tes données personnelles. Réaffiche-le après toute modification pour obtenir une sauvegarde à jour.</p>
+    </div>
+    <div id="pea-backup-text-status" role="status" aria-live="polite"></div>
+  </div>
   <div class="page-hero">
     <div class="hp-sup">Tous les 6 mois</div>
     <div class="hp-ttl">Export Claude</div>
@@ -1937,7 +1953,7 @@ function save() {
 
 // DCA orders only
 function dcaOrders() {
-  return S.orders.filter(function(o){ return o.cycle !== 'C0'; });
+  return S.orders.filter(function(o){ return o && typeof o.cycle === 'string' && /^C(?:[1-9]|10)$/.test(o.cycle); });
 }
 
 // Capital initial du plan (pour la projection theorique) = ordres C0 du deploiement
@@ -2237,13 +2253,13 @@ function editOrder(id) {
   var o = S.orders.find(function(o){ return o.id === id; });
   if (!o) return;
   document.getElementById('o-etf').value = o.etf;
-  document.getElementById('o-cycle').value = o.cycle || 'C1';
+  document.getElementById('o-cycle').value = o.cycle == null ? '' : o.cycle;
   document.getElementById('o-qty').value = o.qty;
   document.getElementById('o-price').value = o.price;
   document.getElementById('o-date').value = o.date;
   document.getElementById('o-note').value = o.note || '';
   document.getElementById('edit-id').value = o.id;
-  document.getElementById('form-title').textContent = 'Modifier ' + o.cycle + ' \u00B7 ' + o.etf;
+  document.getElementById('form-title').textContent = 'Modifier ' + (o.cycle || 'Non attribu\u00e9') + ' \u00B7 ' + o.etf;
   document.getElementById('save-btn').textContent = 'Sauvegarder \u2192';
   document.getElementById('cancel-edit-btn').style.display = 'block';
 }
@@ -2311,7 +2327,7 @@ function renderOrders() {
     var noteHtml = o.note ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;">' + cashEsc(o.note) + '</div>' : '';
     return '<tr>'
       + '<td style="white-space:nowrap">' + cashEsc(o.date) + noteHtml + '</td>'
-      + '<td><span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">' + cashEsc(o.cycle||'-') + '</span></td>'
+      + '<td><span style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">' + cashEsc(o.cycle||'Non attribu\u00e9') + '</span></td>'
       + '<td><span class="pill ' + pc + '">' + cashEsc(o.etf) + '</span></td>'
       + '<td class="r">' + cashEsc(o.qty) + '</td>'
       + '<td class="r">' + Number(o.price).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:4}) + ' \u20AC</td>'
@@ -3098,7 +3114,7 @@ function generateExport() {
   var comment=document.getElementById('ex-comment').value.trim()||'-';
   var histo=orders.map(function(o){
     var fee=o.fee===undefined||o.fee===null?'non renseignes':fmtC(o.fee);
-    return '  '+o.date+' | '+(o.cycle||'-')+' | '+o.etf+' | '+o.qty+' parts x '+unit(o.price)+' | frais : '+fee+' | net debite : '+fmtC(o.total)+(o.note?' | '+o.note:'');
+    return '  '+o.date+' | '+(o.cycle||'Non attribu\u00e9')+' | '+o.etf+' | '+o.qty+' parts x '+unit(o.price)+' | frais : '+fee+' | net debite : '+fmtC(o.total)+(o.note?' | '+o.note:'');
   }).join('\n')||'  Aucun ordre';
   var flux=(S.cashFlows||[]).map(function(x){return '  '+x.date+' | '+(x.kind==='dividend'?'Dividende net +':'Frais interne -')+fmtC(x.amount)+(x.note?' | '+x.note:'');}).join('\n')||'  Aucun mouvement interne';
   function pruLine(k){return k+' : '+(PRU[k]?'PRU '+unit(PRU[k].pru)+' | '+PRU[k].qty+' parts | cout '+fmtC(PRU[k].invested):'Aucun ordre');}
@@ -3430,7 +3446,7 @@ renderHealthScore=function(){
 renderCeiling=function(){var dep=(S.deposits||[]).reduce(function(a,d){return a+(Number(d.amount)||0);},0),cents=Math.round(dep*100);peaText('ceil-amount',fmtC(dep));peaText('ceil-sub',cents>15000000?'Plafond depasse selon les virements enregistres : a verifier':cents===15000000?'Plafond atteint selon les virements enregistres : a verifier':'Reste indicatif si journal complet : '+fmtC(Math.max(0,150000-dep)));var e=peaEl('ceil-fill');if(e)e.style.width=Math.min(100,100*dep/150000)+'%';};
 renderRealAlloc=function(){var wrap=peaEl('alloc-real-wrap');if(!wrap)return;var st=peaValues(),keys=['DCAM','PAEEM','PNAS'];if(peaLegacyWarning()){wrap.textContent='Ancien ETF CEM a verifier avant le calcul.';return;}if(keys.some(function(k){return st[k].value===null;})){wrap.textContent='Renseigne le cours de chaque ETF detenu.';return;}var total=keys.reduce(function(a,k){return a+st[k].value;},0);if(!total){wrap.textContent='Aucune valorisation disponible.';return;}wrap.innerHTML=keys.map(function(k,i){var pct=100*st[k].value/total,target=[60,30,10][i],delta=pct-target;return '<div class="alloc-row"><span>'+k+' · cible '+target+' %</span><span>'+pct.toFixed(2)+' % ('+(delta>=0?'+':'')+delta.toFixed(2)+' pts)</span></div>';}).join('')+'<div style="font-size:11px;color:var(--muted)">Sur les titres uniquement ; especes separees.</div>';};
 updateVal=function(){var q={},st=peaValues(),ok=true;['DCAM','PAEEM','PNAS'].forEach(function(k){var e=peaEl('p-'+k.toLowerCase()),v=e?Number(e.value):0;if(st[k].qty&&(!v||v<=0))ok=false;q[k]=v>0?v:null;});if(peaLegacyWarning()){alert('Verifie les anciens ordres CEM.');return;}if(!ok){alert('Renseigne le cours de chaque ETF detenu.');return;}var previousQuotes=S.quotes;S.quotes=q;if(!save()){S.quotes=previousQuotes;return;}renderAll();var e=peaEl('val-res');if(e)e.style.display='block';peaText('val-txt','Cours enregistres sur cet appareil ; aucune actualisation automatique.');};
-saveOrder=function(){var etf=peaEl('o-etf').value,cycle=peaEl('o-cycle').value,qty=peaEl('o-qty').value,price=peaEl('o-price').value,date=peaEl('o-date').value,note=peaEl('o-note').value.trim(),fee=peaEl('o-fee').value.trim(),net=peaEl('o-net').value.trim(),edit=peaEl('edit-id').value,total;if(!date){alert('Indique une date.');return;}try{if(fee===''&&net==='')throw Error('Indique les frais, meme nuls, ou le montant net.');if((fee!==''&&!peaValidMoneyInput(fee))||(net!==''&&!peaValidMoneyInput(net)))throw Error('Frais et montant net : indique un montant positif avec au maximum deux decimales (ex. 0,02).');total=peaOrderTotal(qty,price,fee,net);var original=edit?S.orders.find(function(x){return String(x.id)===String(edit);}):null;var netExplicit=peaOrderNetEdit&&peaOrderNetEdit.id===String(edit)&&peaOrderNetEdit.explicit;if(original&&fee===''&&net!==''&&(Number(qty)!==Number(original.qty)||Number(String(price).replace(',','.'))!==Number(original.price))&&Number(String(net).replace(',','.'))===Number(original.total)&&!netExplicit&&!confirm('Les parts ou le prix ont change, mais les frais restent inconnus et le montant net est celui de l ancien achat. Conserver ce montant net ?'))return;if(fee!==''&&net!==''&&Math.abs(total-peaOrderTotal(qty,price,fee,undefined,true))>0.005&&!confirm('Le montant net ne correspond pas au prix et aux frais saisis. Conserver le montant net indique ?'))return;}catch(e){alert(e.message);return;}var o={etf:etf,cycle:cycle,qty:Number(qty),price:Number(String(price).replace(',','.')),date:date,note:note,total:total,fee:fee===''?null:Number(String(fee).replace(',','.')),id:edit?Number(edit):Date.now()},beforeOrders=S.orders.slice();if(edit){var idx=S.orders.findIndex(function(x){return String(x.id)===String(edit);});if(idx<0){alert('Ordre introuvable');return;}S.orders[idx]=o;}else S.orders.push(o);S.orders.sort(function(a,b){return a.date.localeCompare(b.date);});if(!save()){S.orders=beforeOrders;return;}if(edit)cancelEdit();['o-qty','o-price','o-note','o-fee','o-net'].forEach(function(id){peaEl(id).value='';});renderAll();peaUpdateOrderPreview();};
+saveOrder=function(){var etf=peaEl('o-etf').value,cycle=peaEl('o-cycle').value,qty=peaEl('o-qty').value,price=peaEl('o-price').value,date=peaEl('o-date').value,note=peaEl('o-note').value.trim(),fee=peaEl('o-fee').value.trim(),net=peaEl('o-net').value.trim(),edit=peaEl('edit-id').value,total;if(!date){alert('Indique une date.');return;}try{if(fee===''&&net==='')throw Error('Indique les frais, meme nuls, ou le montant net.');if((fee!==''&&!peaValidMoneyInput(fee))||(net!==''&&!peaValidMoneyInput(net)))throw Error('Frais et montant net : indique un montant positif avec au maximum deux decimales (ex. 0,02).');total=peaOrderTotal(qty,price,fee,net);var original=edit?S.orders.find(function(x){return String(x.id)===String(edit);}):null;var netExplicit=peaOrderNetEdit&&peaOrderNetEdit.id===String(edit)&&peaOrderNetEdit.explicit;if(original&&fee===''&&net!==''&&(Number(qty)!==Number(original.qty)||Number(String(price).replace(',','.'))!==Number(original.price))&&Number(String(net).replace(',','.'))===Number(original.total)&&!netExplicit&&!confirm('Les parts ou le prix ont change, mais les frais restent inconnus et le montant net est celui de l ancien achat. Conserver ce montant net ?'))return;if(fee!==''&&net!==''&&Math.abs(total-peaOrderTotal(qty,price,fee,undefined,true))>0.005&&!confirm('Le montant net ne correspond pas au prix et aux frais saisis. Conserver le montant net indique ?'))return;}catch(e){alert(e.message);return;}if(edit&&cycle===''){var previousCycleOrder=S.orders.find(function(x){return String(x.id)===String(edit);});if(previousCycleOrder&&previousCycleOrder.cycle==null)cycle=previousCycleOrder.cycle;}var o={etf:etf,cycle:cycle,qty:Number(qty),price:Number(String(price).replace(',','.')),date:date,note:note,total:total,fee:fee===''?null:Number(String(fee).replace(',','.')),id:edit?Number(edit):Date.now()},beforeOrders=S.orders.slice();if(edit){var idx=S.orders.findIndex(function(x){return String(x.id)===String(edit);});if(idx<0){alert('Ordre introuvable');return;}S.orders[idx]=o;}else S.orders.push(o);S.orders.sort(function(a,b){return a.date.localeCompare(b.date);});if(!save()){S.orders=beforeOrders;return;}if(edit)cancelEdit();['o-qty','o-price','o-note','o-fee','o-net'].forEach(function(id){peaEl(id).value='';});renderAll();peaUpdateOrderPreview();};
 var peaOriginalEdit=editOrder;editOrder=function(id){peaOriginalEdit(id);var o=S.orders.find(function(x){return x.id===id;});peaEl('o-fee').value=o&&o.fee!=null?o.fee:'';peaEl('o-net').value=o&&o.total!=null?o.total:'';peaOrderNetEdit=o?{id:String(o.id),explicit:false}:null;};
 calcProj=function(sc,rate){var r=peaProjectionFor(sc,rate,0);return r?r.points.map(function(p){return Math.round(p.total);}):[];};
 calcInvested=function(sc){var r=peaProjectionFor(sc,9,0);return r?r.points.map(function(p){return Math.round(p.peaDeposits+p.ctoDeposits);}):[];};
@@ -4307,6 +4323,30 @@ function peaRefreshHorizon(){
  var chart=buildProjChart;buildProjChart=function(){var state=peaHorizonState();if(state==='last'||state==='after'){if(projChart){projChart.destroy();projChart=null;}peaRefreshHorizon();return;}var r=chart.apply(this,arguments);peaRefreshHorizon();return r;};
  document.addEventListener('DOMContentLoaded',peaRefreshHorizon);
 })();
+</script>
+<script id="pea-backup-iphone">
+function peaBackupTelecharger(){
+  var status=peaEl('pea-backup-text-status');
+  if(peaStorageGuard.blocked){if(status)status.textContent='Les données sont protégées : utilise l’écran de récupération pour exporter les données brutes.';return false;}
+  try{downloadJSON();return true;}catch(err){if(status)status.textContent='Téléchargement impossible. Tu peux afficher puis copier le texte de sauvegarde.';return false;}
+}
+function peaBackupAfficher(){
+  var status=peaEl('pea-backup-text-status'),wrap=peaEl('pea-backup-text-wrap'),field=peaEl('pea-backup-text');
+  if(peaStorageGuard.blocked){if(wrap)wrap.style.display='none';if(field)field.value='';if(status)status.textContent='Les données sont protégées : utilise l’écran de récupération pour exporter les données brutes.';return false;}
+  try{
+    var backup=JSON.stringify(makeBackup(),null,2);
+    if(!field||!wrap)throw Error('Zone de sauvegarde introuvable');
+    field.value=backup;wrap.style.display='block';
+    if(status)status.textContent='Texte prêt. Sélectionne-le puis copie-le pour le conserver.';
+    return true;
+  }catch(err){if(status)status.textContent='Impossible de préparer la sauvegarde : '+err.message;return false;}
+}
+function peaBackupSelectionner(){
+  var field=peaEl('pea-backup-text'),status=peaEl('pea-backup-text-status');
+  if(!field||!field.value){if(status)status.textContent='Affiche d’abord le texte de sauvegarde.';return false;}
+  try{field.focus();field.select();if(typeof field.setSelectionRange==='function')field.setSelectionRange(0,field.value.length);if(status)status.textContent='Utilise « Copier » dans le menu de ton iPhone.';return true;}
+  catch(err){if(status)status.textContent='Sélectionne tout le texte manuellement, puis copie-le.';return false;}
+}
 </script>
 </body>
 </html>
