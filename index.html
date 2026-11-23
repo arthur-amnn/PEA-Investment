@@ -1202,7 +1202,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
   <h1 class="cockpit-title">Mon PEA</h1>
   <div class="hero-imm">
     <svg class="pea-da-gauge" viewBox="0 0 64 160" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M36 -8 C73 35 73 125 36 168" fill="none" stroke="#EAE4E0" stroke-opacity=".30" stroke-width="1.4"/><path d="M47 12 C68 49 68 111 47 148" fill="none" stroke="#F6AF2A" stroke-opacity=".42" stroke-width="1.3"/></svg>
-    <div class="hi-sup">Valeur du PEA</div>
+    <div class="hi-sup">Valeur du PEA <span id="pea-precise-snapshot-date" style="font-size:11px;margin-left:8px"></span></div>
     <div class="hi-h1"><b id="hi-snapshot">&#x2014;</b><span class="pea-pea-badge" id="pea-pea-badge" hidden><span id="pea-pea-badge-value"></span><small>vs versements</small></span></div>
     <div class="hi-meta" id="hi-snapshot-date">Renseignez votre situation pour afficher une valeur de r&#xE9;f&#xE9;rence.</div>
     <div class="hi-summary"><span>Versement futur <b id="hi-dca">&#x2014;</b></span><span>Projection indicative <b id="hi-obj">&#x2014;</b></span></div>
@@ -1661,21 +1661,6 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 <!-- EXPORT -->
 <section class="page" id="page-export">
   <h1 class="pea-section-title">Export</h1>
-  <div class="cc" id="pea-backup-iphone-card">
-    <div class="st">Sauvegarde complète</div>
-    <p>Conserve une copie de tes données avant de modifier ton historique. Le rapport ci-dessous est séparé de cette sauvegarde.</p>
-    <div style="display:grid;gap:10px;margin-top:12px">
-      <button class="btn" type="button" onclick="peaBackupTelecharger()">Télécharger la sauvegarde JSON</button>
-      <button class="btn-o" type="button" onclick="peaBackupAfficher()">Afficher le texte de sauvegarde</button>
-    </div>
-    <div id="pea-backup-text-wrap" style="display:none;margin-top:12px">
-      <label for="pea-backup-text">Texte complet de la sauvegarde</label>
-      <textarea id="pea-backup-text" class="fi" rows="7" readonly spellcheck="false" style="width:100%;margin-top:6px"></textarea>
-      <button class="btn-o" type="button" onclick="peaBackupSelectionner()" style="margin-top:8px">Sélectionner le texte</button>
-      <p>Après sélection, utilise « Copier » sur ton iPhone. Ce texte contient tes données personnelles. Réaffiche-le après toute modification pour obtenir une sauvegarde à jour.</p>
-    </div>
-    <div id="pea-backup-text-status" role="status" aria-live="polite"></div>
-  </div>
   <div class="page-hero">
     <div class="hp-sup">Tous les 6 mois</div>
     <div class="hp-ttl">Export Claude</div>
@@ -3132,7 +3117,8 @@ function generateExport() {
     +'--------------------------------------------------\nSITUATION SAISIE\n--------------------------------------------------\n'
     +'Total des achats nets enregistres : '+fmtC(purchaseTotal)+'\n'
     +'Cout des positions restantes : '+fmtC(inv)+'\n'
-    +'Ordres DCA enregistres : '+n+'\n'
+    +'Ordres attribués au DCA : '+n+'\n'
+    +'Achats non attribués : '+orders.filter(function(o){return !o.cycle;}).length+'\n'
     +'Repere theorique du mois : '+cycleLine+'\n\n'
     +valLine+'\n\n'
     +'--------------------------------------------------\nPRU PAR ETF\n--------------------------------------------------\n'
@@ -3588,6 +3574,12 @@ handleImport = function(event) {
   if (!file) return;
   var reader = new FileReader();
   reader.onload = function(e) {
+    var privateInput; try { privateInput = JSON.parse(e.target.result); } catch (_) {}
+    if (privateInput && privateInput.format === 'pea-private-reconcile-v1') {
+      var outcome = peaPrivateReconcile(privateInput), privateFeedback = peaEl(peaStorageGuard.blocked?'pea-storage-recovery-feedback':'import-fb');
+      if (privateFeedback) { privateFeedback.style.display = 'block'; privateFeedback.textContent = outcome.ok ? 'Reprise terminée. Vérifiez le relevé et renseignez les cours actuels.' : outcome.error; }
+      event.target.value = ''; return;
+    }
     var result = validateBackup(e.target.result), feedback = peaEl(peaStorageGuard.blocked?'pea-storage-recovery-feedback':'import-fb');
     if (!result.ok) {
       feedback.style.display = 'block'; feedback.textContent = 'Fichier invalide : ' + result.error;
@@ -4324,29 +4316,117 @@ function peaRefreshHorizon(){
  document.addEventListener('DOMContentLoaded',peaRefreshHorizon);
 })();
 </script>
-<script id="pea-backup-iphone">
-function peaBackupTelecharger(){
-  var status=peaEl('pea-backup-text-status');
-  if(peaStorageGuard.blocked){if(status)status.textContent='Les données sont protégées : utilise l’écran de récupération pour exporter les données brutes.';return false;}
-  try{downloadJSON();return true;}catch(err){if(status)status.textContent='Téléchargement impossible. Tu peux afficher puis copier le texte de sauvegarde.';return false;}
+<script id="pea-private-reconcile">
+/* Reprise privée explicite : aucune donnée personnelle ni réseau dans ce module. */
+function peaPrivateReconcile(input) {
+  function fail(message) { throw Error(message); }
+  function isObject(value) { return !!value && typeof value === 'object' && !Array.isArray(value); }
+  function fields(value, allowed) {
+    if (!isObject(value) || Object.keys(value).some(function(k) { return allowed.indexOf(k) < 0; })) fail('Structure du fichier non reconnue');
+  }
+  function money(value) {
+    if (typeof value !== 'number' && typeof value !== 'string') fail('Montant invalide');
+    var text = String(value).trim();
+    if (!peaValidMoneyInput(text)) fail('Montant invalide');
+    var n = Number(text.replace(',', '.')), cents = Math.round(n * 100);
+    if (!Number.isFinite(n) || n < 0 || !Number.isSafeInteger(cents)) fail('Montant invalide');
+    return cents;
+  }
+  function qty(value) {
+    var n = Number(value); if (!Number.isSafeInteger(n) || n <= 0) fail('Quantité invalide'); return n;
+  }
+  function price(value) {
+    if (typeof value !== 'number' && typeof value !== 'string') fail('Prix invalide');
+    var text = String(value).trim();
+    if (!/^(?:\d+(?:[.,]\d{1,4})?|[.,]\d{1,4})$/.test(text) || Number(text.replace(',', '.')) <= 0) fail('Prix invalide');
+    return Number(text.replace(',', '.'));
+  }
+  function fingerprint(o) {
+    if (!o || !peaValidDate(o.date) || typeof o.etf !== 'string') fail('Ancien achat illisible');
+    return JSON.stringify([o.date, o.etf, qty(o.qty), price(o.price), money(o.total)]);
+  }
+  function sameMultiset(actual, expected) {
+    if (!Array.isArray(actual) || !Array.isArray(expected) || actual.length !== expected.length) return false;
+    var a = actual.map(fingerprint).sort(), b = expected.map(fingerprint).sort();
+    return a.every(function(x, i) { return x === b[i]; });
+  }
+  try {
+    if (peaStorageGuard.blocked) fail('Les données sont protégées ; résolvez d’abord le problème de stockage.');
+    fields(input, ['format','version','expected','replace','plan','quotes','reference']);
+    if (input.format !== 'pea-private-reconcile-v1' || input.version !== 1) fail('Format non reconnu');
+    fields(input.expected, ['orders','deposits']); fields(input.replace, ['orders','deposits']);
+    if (!Array.isArray(input.expected.orders) || !input.expected.orders.length || !Array.isArray(input.expected.deposits) || input.expected.deposits.length !== 1 || !Array.isArray(input.replace.orders) || !input.replace.orders.length || !Array.isArray(input.replace.deposits) || !input.replace.deposits.length) fail('Liste d’opérations absente');
+    input.expected.orders.forEach(function(o) { fields(o,['date','etf','qty','price','total']); fingerprint(o); });
+    input.expected.deposits.forEach(function(d) { fields(d,['amount']); if (money(d.amount) <= 0) fail('Ancien virement invalide'); });
+    if (!sameMultiset(S.orders, input.expected.orders) || !Array.isArray(S.deposits) || S.deposits.length !== 1 || money(S.deposits[0].amount) !== money(input.expected.deposits[0].amount)) fail('Les anciennes lignes ne correspondent pas. Aucune donnée n’a été remplacée.');
+    if ((S.sales && (!Array.isArray(S.sales) || S.sales.length)) || (S.cashFlows && (!Array.isArray(S.cashFlows) || S.cashFlows.length))) fail('Des ventes ou mouvements internes existent ; vérifiez-les avant reprise.');
+    var planKeys = ['openDate','cycleStart','asOf','marketValue','cash','totalDeposits','monthly'];
+    if (!isObject(S.plan) || planKeys.some(function(k) { return S.plan[k] !== undefined && S.plan[k] !== null && S.plan[k] !== ''; })) fail('Des paramètres du plan existent déjà ; vérifiez-les avant reprise.');
+    if (!isObject(S.quotes) || Object.keys(S.quotes).some(function(k) { return S.quotes[k] !== undefined && S.quotes[k] !== null && S.quotes[k] !== ''; })) fail('Des cours existent déjà ; vérifiez-les avant reprise.');
+    fields(input.plan, planKeys);
+    if (Object.keys(input.plan).length !== planKeys.length || !peaValidDate(input.reference) || input.reference > peaLocalToday() || !peaValidDate(input.plan.openDate) || input.plan.openDate > input.reference) fail('Dates du plan invalides');
+    var start = peaMonthIndex(input.plan.cycleStart), asof = peaMonthIndex(input.plan.asOf), opened = peaMonthIndex(input.plan.openDate.slice(0,7));
+    if (start < opened || asof < opened || asof < start - 1 || input.plan.asOf !== input.reference.slice(0,7)) fail('Dates du plan incohérentes');
+    var market = money(input.plan.marketValue), cash = money(input.plan.cash), deposited = money(input.plan.totalDeposits), monthly = money(input.plan.monthly);
+    if (!monthly) fail('DCA mensuel invalide');
+    var sumOrders = 0, sumDeposits = 0, referenceOrders = 0, referenceDeposits = 0, seenOrders = new Set(), seenDeposits = new Set(), positions = {DCAM:0, PAEEM:0, PNAS:0};
+    input.replace.orders.forEach(function(o) {
+      fields(o,['id','date','etf','qty','price','total','fee','cycle','note']);
+      if (!peaValidDate(o.date) || o.date > peaLocalToday() || ['DCAM','PAEEM','PNAS'].indexOf(o.etf) < 0 || o.cycle !== '' || !Number.isSafeInteger(o.id) || o.id < 0 || typeof o.note !== 'string' || o.note.length > 120) fail('Nouvel achat invalide');
+      var q = qty(o.qty), p = price(o.price), total = money(o.total), fee = money(o.fee);
+      if (!total || Math.round(peaOrderTotal(q,p,fee/100) * 100) !== total) fail('Montant net d’achat incohérent');
+      var key = JSON.stringify([o.date,o.etf,q,p,total,fee]); if (seenOrders.has(key)) fail('Achat en double'); seenOrders.add(key);
+      positions[o.etf] += q; if (!Number.isSafeInteger(positions[o.etf])) fail('Quantité trop élevée');
+      sumOrders += total; if (o.date <= input.reference) referenceOrders += total; if (!Number.isSafeInteger(sumOrders)) fail('Montant trop élevé');
+    });
+    input.replace.deposits.forEach(function(d) {
+      fields(d,['id','date','amount','note']);
+      if (!peaValidDate(d.date) || d.date > peaLocalToday() || !Number.isSafeInteger(d.id) || d.id < 0 || typeof d.note !== 'string' || d.note.length > 80) fail('Nouveau virement invalide');
+      var amount = money(d.amount); if (!amount) fail('Virement invalide');
+      var key = JSON.stringify([d.date,amount]); if (seenDeposits.has(key)) fail('Virement en double'); seenDeposits.add(key);
+      sumDeposits += amount; if (d.date <= input.reference) referenceDeposits += amount; if (!Number.isSafeInteger(sumDeposits)) fail('Montant trop élevé');
+    });
+    if (referenceDeposits !== deposited || referenceDeposits - referenceOrders !== cash) fail('Le total versé ou les espèces à la date du relevé ne correspondent pas aux mouvements');
+    var next = JSON.parse(JSON.stringify(S));
+    next.orders = JSON.parse(JSON.stringify(input.replace.orders)); next.deposits = JSON.parse(JSON.stringify(input.replace.deposits));
+    next.plan = Object.assign({}, next.plan, input.plan, {referenceDate:input.reference}); next.dcaBase = monthly / 100;
+    var validation = validateBackup({format:'pea-full-v1',version:1,state:next});
+    if (!validation.ok || validation.mode !== 'full') fail('Données non importées : ' + validation.error);
+    var oldDeposit = S.deposits[0], oldNote = String(oldDeposit.note || ''), oldId = String(oldDeposit.id);
+    var message = 'Vérifiez l’ancien virement : ' + oldDeposit.date + ' · ' + fmtC(oldDeposit.amount) + ' · identifiant ' + oldId + (oldNote ? ' · note : ' + oldNote : ' · sans note') + '.\n\n';
+    message += 'Remplacer ' + S.orders.length + ' anciens achats et 1 ancien virement par ' + next.orders.length + ' achats et ' + next.deposits.length + ' virements ? Les notes de ces anciennes lignes seront remplacées ; une copie locale de l’état précédent sera conservée. Les autres données seront conservées.\n\n';
+    message += 'Total des achats ' + fmtC(sumOrders/100) + ' ; versements ' + fmtC(sumDeposits/100) + ' ; espèces calculées ' + fmtC((sumDeposits-sumOrders)/100) + '. Parts : DCAM ' + positions.DCAM + ', PAEEM ' + positions.PAEEM + ', PNAS ' + positions.PNAS + '.\n';
+    message += 'Relevé du ' + input.reference + ' : titres ' + fmtC(market/100) + ', espèces ' + fmtC(cash/100) + '. Ces valeurs sont historiques ; les cours ne sont pas importés. Les cycles des achats restent non attribués.';
+    if (!confirm(message)) return {ok:false,cancelled:true,error:'Reprise annulée.'};
+    peaAssertStorageCurrent();
+    var raw = localStorage.getItem('pea_design_etape1_v5');
+    if (raw === null) fail('Aucun état enregistré à sauvegarder');
+    var key = 'pea_design_etape1_v5_raw_backup_' + Date.now(), suffix = 0;
+    while (localStorage.getItem(key) !== null) key = 'pea_design_etape1_v5_raw_backup_' + Date.now() + '_' + (++suffix);
+    localStorage.setItem(key, raw); if (localStorage.getItem(key) !== raw) fail('Copie brute non vérifiée');
+    peaBackupCurrentState();
+    peaWriteCurrentState(validation.state);
+    S = validation.state;
+    try { peaRefreshRestoredViews(); } catch (_) { /* données enregistrées ; réouverture possible */ }
+    return {ok:true,error:null};
+  } catch (error) {
+    return {ok:false,error:error && error.peaConflict ? 'Données modifiées dans un autre onglet.' : (error && error.message || 'Reprise impossible.')};
+  }
 }
-function peaBackupAfficher(){
-  var status=peaEl('pea-backup-text-status'),wrap=peaEl('pea-backup-text-wrap'),field=peaEl('pea-backup-text');
-  if(peaStorageGuard.blocked){if(wrap)wrap.style.display='none';if(field)field.value='';if(status)status.textContent='Les données sont protégées : utilise l’écran de récupération pour exporter les données brutes.';return false;}
-  try{
-    var backup=JSON.stringify(makeBackup(),null,2);
-    if(!field||!wrap)throw Error('Zone de sauvegarde introuvable');
-    field.value=backup;wrap.style.display='block';
-    if(status)status.textContent='Texte prêt. Sélectionne-le puis copie-le pour le conserver.';
-    return true;
-  }catch(err){if(status)status.textContent='Impossible de préparer la sauvegarde : '+err.message;return false;}
-}
-function peaBackupSelectionner(){
-  var field=peaEl('pea-backup-text'),status=peaEl('pea-backup-text-status');
-  if(!field||!field.value){if(status)status.textContent='Affiche d’abord le texte de sauvegarde.';return false;}
-  try{field.focus();field.select();if(typeof field.setSelectionRange==='function')field.setSelectionRange(0,field.value.length);if(status)status.textContent='Utilise « Copier » dans le menu de ton iPhone.';return true;}
-  catch(err){if(status)status.textContent='Sélectionne tout le texte manuellement, puis copie-le.';return false;}
-}
+
+// Le relevé est un instantané : afficher son jour pour ne pas le confondre avec les cours actuels.
+(function() {
+  function showReferenceDate() {
+    var p = peaCurrentPlan(), value = String(p.referenceDate || ''), badge = peaEl('pea-precise-snapshot-date');
+    if (!badge) return;
+    badge.textContent = peaValidDate(value) && value.slice(0,7) === String(p.asOf || '')
+      ? 'Relevé du ' + value.slice(8,10) + '/' + value.slice(5,7) + '/' + value.slice(0,4) : '';
+  }
+  var oldRender = renderAll;
+  renderAll = function() { var result = oldRender.apply(this, arguments); showReferenceDate(); return result; };
+  document.addEventListener('DOMContentLoaded', showReferenceDate);
+})();
+
 </script>
 </body>
 </html>
