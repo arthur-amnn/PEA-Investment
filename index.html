@@ -4350,15 +4350,80 @@ function peaPrivateReconcile(input) {
     var a = actual.map(fingerprint).sort(), b = expected.map(fingerprint).sort();
     return a.every(function(x, i) { return x === b[i]; });
   }
+  function validateOrderVariant(variant) {
+    if (!Array.isArray(variant) || !variant.length || variant.length > 20) fail('Variante d’achats invalide');
+    variant.forEach(function(o) { fields(o,['date','etf','qty','price','total']); fingerprint(o); });
+  }
+  function describeOrders(orders) {
+    if (!Array.isArray(orders)) return 'liste indisponible';
+    if (!orders.length) return 'aucune ligne';
+    var lines=orders.slice(0,10).map(function(o) {
+      if (!o || !peaValidDate(o.date) || typeof o.etf !== 'string') return 'ligne illisible';
+      return o.date+' : '+o.etf+' · '+qty(o.qty)+' part(s) · prix '+price(o.price)+' € · net '+fmtC(money(o.total)/100);
+    });
+    if (orders.length>10) lines.push('et autres lignes');
+    return lines.join(' ; ');
+  }
+  function validateDepositVariant(variant) {
+    if (!Array.isArray(variant) || !variant.length || variant.length > 20) fail('Variante de virements invalide');
+    var unknown = 0, datedKeys = new Set();
+    variant.forEach(function(d) {
+      fields(d, ['date','amount']);
+      var amount=money(d.amount); if (amount <= 0) fail('Ancien virement invalide');
+      if (Object.prototype.hasOwnProperty.call(d,'date')) {
+        if (!peaValidDate(d.date)) fail('Date de virement attendue invalide');
+        var key=JSON.stringify([d.date,amount]);
+        if (datedKeys.has(key)) fail('Virements attendus ambigus');
+        datedKeys.add(key);
+      } else unknown++;
+    });
+    if (unknown > 1) fail('Plusieurs dates de virement sont inconnues');
+  }
+  function sameDeposits(actual, expected) {
+    if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+    var a = actual.map(function(d) {
+      if (!d || !peaValidDate(d.date)) fail('Ancien virement illisible');
+      return {date:d.date,amount:money(d.amount),used:false};
+    });
+    // Les lignes dont la date est connue sont appariées avant l'éventuelle ligne non datée.
+    var dated=expected.filter(function(d){return Object.prototype.hasOwnProperty.call(d,'date');});
+    var undated=expected.filter(function(d){return !Object.prototype.hasOwnProperty.call(d,'date');});
+    return dated.concat(undated).every(function(d){
+      var amount=money(d.amount),hasDate=Object.prototype.hasOwnProperty.call(d,'date');
+      var index=a.findIndex(function(x){return !x.used && x.amount===amount && (!hasDate || x.date===d.date);});
+      if (index<0) return false; a[index].used=true; return true;
+    });
+  }
+  function describeDeposits(deposits) {
+    if (!Array.isArray(deposits)) return 'liste indisponible';
+    if (!deposits.length) return 'aucune ligne';
+    var lines = deposits.slice(0,10).map(function(d) {
+      if (!d || !peaValidDate(d.date)) return 'ligne illisible';
+      return d.date + ' : ' + fmtC(money(d.amount)/100);
+    });
+    if (deposits.length > 10) lines.push('et autres lignes');
+    return lines.join(' ; ');
+  }
   try {
     if (peaStorageGuard.blocked) fail('Les données sont protégées ; résolvez d’abord le problème de stockage.');
     fields(input, ['format','version','expected','replace','plan','quotes','reference']);
     if (input.format !== 'pea-private-reconcile-v1' || input.version !== 1) fail('Format non reconnu');
-    fields(input.expected, ['orders','deposits']); fields(input.replace, ['orders','deposits']);
-    if (!Array.isArray(input.expected.orders) || !input.expected.orders.length || !Array.isArray(input.expected.deposits) || input.expected.deposits.length !== 1 || !Array.isArray(input.replace.orders) || !input.replace.orders.length || !Array.isArray(input.replace.deposits) || !input.replace.deposits.length) fail('Liste d’opérations absente');
-    input.expected.orders.forEach(function(o) { fields(o,['date','etf','qty','price','total']); fingerprint(o); });
-    input.expected.deposits.forEach(function(d) { fields(d,['amount']); if (money(d.amount) <= 0) fail('Ancien virement invalide'); });
-    if (!sameMultiset(S.orders, input.expected.orders) || !Array.isArray(S.deposits) || S.deposits.length !== 1 || money(S.deposits[0].amount) !== money(input.expected.deposits[0].amount)) fail('Les anciennes lignes ne correspondent pas. Aucune donnée n’a été remplacée.');
+    fields(input.expected, ['orders','deposits','depositVariants','orderVariants']); fields(input.replace, ['orders','deposits']);
+    if (!Array.isArray(input.expected.orders) || !input.expected.orders.length || !Array.isArray(input.replace.orders) || !input.replace.orders.length || !Array.isArray(input.replace.deposits) || !input.replace.deposits.length) fail('Liste d’opérations absente');
+    var orderVariants=[input.expected.orders];
+    if (input.expected.orderVariants !== undefined) {
+      if (!Array.isArray(input.expected.orderVariants) || input.expected.orderVariants.length > 10) fail('Variantes d’achats invalides');
+      orderVariants=orderVariants.concat(input.expected.orderVariants);
+    }
+    orderVariants.forEach(validateOrderVariant);
+    var depositVariants = [input.expected.deposits];
+    if (input.expected.depositVariants !== undefined) {
+      if (!Array.isArray(input.expected.depositVariants) || input.expected.depositVariants.length > 10) fail('Variantes de virements invalides');
+      depositVariants = depositVariants.concat(input.expected.depositVariants);
+    }
+    depositVariants.forEach(validateDepositVariant);
+    if (!orderVariants.some(function(v) { return sameMultiset(S.orders,v); })) fail('Les achats enregistrés ne correspondent pas au fichier (' + (Array.isArray(S.orders) ? S.orders.length : 0) + ' achat(s) trouvés : ' + describeOrders(S.orders) + '). Aucune donnée n’a été remplacée.');
+    if (!depositVariants.some(function(v) { return sameDeposits(S.deposits,v); })) fail('Les virements enregistrés ne correspondent pas au fichier (' + (Array.isArray(S.deposits) ? S.deposits.length : 0) + ' trouvé(s) : ' + describeDeposits(S.deposits) + '). Aucune donnée n’a été remplacée.');
     if ((S.sales && (!Array.isArray(S.sales) || S.sales.length)) || (S.cashFlows && (!Array.isArray(S.cashFlows) || S.cashFlows.length))) fail('Des ventes ou mouvements internes existent ; vérifiez-les avant reprise.');
     var planKeys = ['openDate','cycleStart','asOf','marketValue','cash','totalDeposits','monthly'];
     if (!isObject(S.plan) || planKeys.some(function(k) { return S.plan[k] !== undefined && S.plan[k] !== null && S.plan[k] !== ''; })) fail('Des paramètres du plan existent déjà ; vérifiez-les avant reprise.');
@@ -4392,9 +4457,9 @@ function peaPrivateReconcile(input) {
     next.plan = Object.assign({}, next.plan, input.plan, {referenceDate:input.reference}); next.dcaBase = monthly / 100;
     var validation = validateBackup({format:'pea-full-v1',version:1,state:next});
     if (!validation.ok || validation.mode !== 'full') fail('Données non importées : ' + validation.error);
-    var oldDeposit = S.deposits[0], oldNote = String(oldDeposit.note || ''), oldId = String(oldDeposit.id);
-    var message = 'Vérifiez l’ancien virement : ' + oldDeposit.date + ' · ' + fmtC(oldDeposit.amount) + ' · identifiant ' + oldId + (oldNote ? ' · note : ' + oldNote : ' · sans note') + '.\n\n';
-    message += 'Remplacer ' + S.orders.length + ' anciens achats et 1 ancien virement par ' + next.orders.length + ' achats et ' + next.deposits.length + ' virements ? Les notes de ces anciennes lignes seront remplacées ; une copie locale de l’état précédent sera conservée. Les autres données seront conservées.\n\n';
+    var oldLines = S.deposits.map(function(d) { var note=String(d.note||''), id=String(d.id); return d.date+' · '+fmtC(d.amount)+' · identifiant '+id+(note?' · note : '+note:' · sans note'); });
+    var message = 'Vérifiez les anciens achats :\n' + describeOrders(S.orders) + '.\n\nVérifiez les anciens virements :\n' + oldLines.join('\n') + '.\n\n';
+    message += 'Remplacer ' + S.orders.length + ' anciens achats et ' + S.deposits.length + ' ancien(s) virement(s) par ' + next.orders.length + ' achats et ' + next.deposits.length + ' virements ? Les notes de ces anciennes lignes seront remplacées ; une copie locale de l’état précédent sera conservée. Les autres données seront conservées.\n\n';
     message += 'Total des achats ' + fmtC(sumOrders/100) + ' ; versements ' + fmtC(sumDeposits/100) + ' ; espèces calculées ' + fmtC((sumDeposits-sumOrders)/100) + '. Parts : DCAM ' + positions.DCAM + ', PAEEM ' + positions.PAEEM + ', PNAS ' + positions.PNAS + '.\n';
     message += 'Relevé du ' + input.reference + ' : titres ' + fmtC(market/100) + ', espèces ' + fmtC(cash/100) + '. Ces valeurs sont historiques ; les cours ne sont pas importés. Les cycles des achats restent non attribués.';
     if (!confirm(message)) return {ok:false,cancelled:true,error:'Reprise annulée.'};
