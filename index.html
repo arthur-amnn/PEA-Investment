@@ -1091,6 +1091,11 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 #page-projections .sc-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:700px){.bnav{background:#F4F0EC!important;border-top:0;border-radius:22px 22px 0 0}.bnav-it.active .bnav-lb{color:#fff!important}.bnav-it.active .bnav-ic{color:#FFC044!important}#page-dashboard .page,#page-projections .page{padding-left:12px;padding-right:12px}}
 </style>
+<style id="pea-low-bar-style">
+@media (max-width:700px) and (orientation:portrait){
+  html.pea-low-bar .bnav{padding-bottom:min(var(--sb), 8px)}
+}
+</style>
 <style id="pea-photo-percentage-style">
 #page-dashboard .hi-h1{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-right:30px}
 #page-dashboard .pea-pea-badge{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border-radius:999px;background:#FFBE5C;color:#172238;padding:6px 11px;font:700 15px/1.1 Figtree,sans-serif;letter-spacing:0;white-space:nowrap}
@@ -1741,6 +1746,10 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
     <div class="st">V&#xE9;rifier l'affichage</div>
     <p>Pour r&#xE9;gler la barre du bas : affiche les dimensions de l'&#xE9;cran, puis envoie une capture. Aucune donn&#xE9;e financi&#xE8;re n'est utilis&#xE9;e.</p>
     <button type="button" class="btn-o" onclick="peaScreenDiagnostic()">Afficher le diagnostic</button>
+    <div style="margin-top:12px">
+      <button type="button" class="btn-o" id="pea-low-bar-toggle" aria-pressed="false">Essayer la barre plus basse</button>
+      <p id="pea-low-bar-status" role="status">En portrait sur mobile, cet essai réduit la marge sous la barre (par exemple de 34 à 8 px) sans déplacer la barre hors de l'écran. Appuyez à nouveau pour revenir au réglage normal.</p>
+    </div>
     <pre id="pea-screen-result" role="status" hidden style="white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.6 Figtree,sans-serif;color:#172238;margin:12px 0 0"></pre>
   </div>
   <div class="cc">
@@ -4568,6 +4577,31 @@ function peaPrivateReconcile(input) {
   document.addEventListener('DOMContentLoaded', showReferenceDate);
 })();
 
+</script>
+<script id="pea-low-bar-setting">
+(function() {
+  var key = 'pea_display_low_bar_v1';
+  var button = document.getElementById('pea-low-bar-toggle');
+  var status = document.getElementById('pea-low-bar-status');
+  var enabled = false, storageUnavailable = false;
+  try { enabled = localStorage.getItem(key) === '1'; } catch (_) { storageUnavailable = true; }
+  function render(storageFailed) {
+    document.documentElement.classList.toggle('pea-low-bar', enabled);
+    button.setAttribute('aria-pressed', String(enabled));
+    button.textContent = enabled ? 'Rétablir la barre normale' : 'Essayer la barre plus basse';
+    status.textContent = enabled
+      ? "Essai activé : en portrait sur mobile, la marge sous la barre est limitée à 8 px (au lieu de 34 px si votre appareil prévoit 34 px). Appuyez à nouveau pour revenir au réglage normal."
+      : "En portrait sur mobile, cet essai réduit la marge sous la barre (par exemple de 34 à 8 px) sans déplacer la barre hors de l'écran. Appuyez à nouveau pour revenir au réglage normal.";
+    if (storageFailed) status.textContent += " Ce choix ne pourra pas être conservé après rechargement sur cet appareil.";
+  }
+  button.addEventListener('click', function() {
+    enabled = !enabled;
+    var storageFailed = false;
+    try { localStorage.setItem(key, enabled ? '1' : '0'); } catch (_) { storageFailed = true; }
+    render(storageFailed);
+  });
+  render(storageUnavailable);
+})();
 </script>
 <script id="pea-screen-diagnostic">
 function peaScreenDiagnostic() {
