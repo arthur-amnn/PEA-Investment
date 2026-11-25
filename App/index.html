@@ -1167,16 +1167,11 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 }
 </style>
 <style id="pea-mobile-navigation-confort">
-.pea-crisis-inline{display:none}
 @media(max-width:700px){
   /* Le contenu defile dans la zone lisible sous la barre d'etat iOS. */
   .main{height:calc(100dvh - var(--st));margin-top:var(--st)}
   .page{padding-top:12px;padding-bottom:calc(100px + var(--sb))}
   html,body{background:#F4F0EC!important}
-  .crisis-btn{display:none}
-  .page>h1{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .pea-crisis-inline{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border:1px solid #8e3138;border-radius:14px;background:#38252a;color:#fff;font:20px/1 Figtree,sans-serif;cursor:pointer}
-  .pea-crisis-inline:focus-visible{outline:3px solid #173d7a;outline-offset:2px}
 }
 .pea-recovery-options{margin-top:16px;border:1px solid #dad6d0;border-radius:14px;padding:12px}
 .pea-recovery-options summary{cursor:pointer;font-weight:700;min-height:32px}
@@ -1272,7 +1267,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
     <h4>&#x1F4F2; Installer sur iPhone</h4>
     <p>Safari &#x2192; <strong>Partager</strong> &#x2192; <strong>Sur l'ecran d'accueil</strong> &#x2192; Ajouter</p>
   </div>
-  <h1 class="cockpit-title">Mon PEA <button type="button" class="pea-crisis-inline" onclick="openCrisis()" aria-label="Ouvrir le mode crise" title="Mode crise">&#9888;</button></h1>
+  <h1 class="cockpit-title">Mon PEA</h1>
   <div class="hero-imm">
     <svg class="pea-da-gauge" viewBox="0 0 64 160" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M36 -8 C73 35 73 125 36 168" fill="none" stroke="#EAE4E0" stroke-opacity=".30" stroke-width="1.4"/><path d="M47 12 C68 49 68 111 47 148" fill="none" stroke="#F6AF2A" stroke-opacity=".42" stroke-width="1.3"/></svg>
     <div class="hi-sup">Valeur du PEA <span id="pea-precise-snapshot-date" style="font-size:11px;margin-left:8px"></span></div>
@@ -1417,7 +1412,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 
 <!-- DCA -->
 <section class="page" id="page-dca">
-  <h1 class="dca-reference-title">Suivi DCA <button type="button" class="pea-crisis-inline" onclick="openCrisis()" aria-label="Ouvrir le mode crise" title="Mode crise">&#9888;</button></h1>
+  <h1 class="dca-reference-title">Suivi DCA</h1>
   <div id="pea-future-warning-dca" class="al al-gold" role="alert" style="display:none"></div>
   <div id="pea-future-snapshot-dca" class="al al-gold" role="alert" style="display:none"></div>
   <div class="page-hero">
@@ -1589,7 +1584,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 
 <!-- PROJECTIONS -->
 <section class="page" id="page-projections">
-  <h1 class="projection-title">Simulations 30 ans <button type="button" class="pea-crisis-inline" onclick="openCrisis()" aria-label="Ouvrir le mode crise" title="Mode crise">&#9888;</button></h1>
+  <h1 class="projection-title">Simulations 30 ans</h1>
   <div class="page-hero">
     <div class="hp-sup">Long terme</div>
     <div class="hp-ttl">Simulations 30 ans</div>
@@ -1682,7 +1677,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 
 <!-- BILAN -->
 <section class="page" id="page-bilan">
-  <h1 class="pea-section-title">Bilan semestriel <button type="button" class="pea-crisis-inline" onclick="openCrisis()" aria-label="Ouvrir le mode crise" title="Mode crise">&#9888;</button></h1>
+  <h1 class="pea-section-title">Bilan semestriel</h1>
   <div class="page-hero">
     <div class="hp-sup">Juin &amp; Decembre</div>
     <div class="hp-ttl">Bilan semestriel</div>
@@ -1735,13 +1730,19 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 
 <!-- EXPORT -->
 <section class="page" id="page-export">
-  <h1 class="pea-section-title">Export <button type="button" class="pea-crisis-inline" onclick="openCrisis()" aria-label="Ouvrir le mode crise" title="Mode crise">&#9888;</button></h1>
+  <h1 class="pea-section-title">Export</h1>
   <div class="page-hero">
     <div class="hp-sup">Tous les 6 mois</div>
     <div class="hp-ttl">Export Claude</div>
     <div class="hp-sub">Rapport &#xE0; coller dans la conversation</div>
   </div>
   <div class="al al-gold"><strong>Mode d'emploi :</strong> Remplis les champs &#x2192; Genere &#x2192; Copie &#x2192; Colle dans Claude. Analyse en 30 secondes.</div>
+  <div class="cc" id="pea-screen-check">
+    <div class="st">V&#xE9;rifier l'affichage</div>
+    <p>Pour r&#xE9;gler la barre du bas : affiche les dimensions de l'&#xE9;cran, puis envoie une capture. Aucune donn&#xE9;e financi&#xE8;re n'est utilis&#xE9;e.</p>
+    <button type="button" class="btn-o" onclick="peaScreenDiagnostic()">Afficher le diagnostic</button>
+    <pre id="pea-screen-result" role="status" hidden style="white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.6 Figtree,sans-serif;color:#172238;margin:12px 0 0"></pre>
+  </div>
   <div class="cc">
     <div class="st" style="margin-bottom:11px">Enrichir le rapport</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
@@ -1788,7 +1789,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 
 <!-- ETFs -->
 <section class="page" id="page-etfs">
-  <h1 class="pea-extra-title">Les 3 ETF <button type="button" class="pea-crisis-inline" onclick="openCrisis()" aria-label="Ouvrir le mode crise" title="Mode crise">&#9888;</button></h1>
+  <h1 class="pea-extra-title">Les 3 ETF</h1>
   <div class="page-hero">
     <div class="hp-sup">Reference</div>
     <div class="hp-ttl">Les 3 ETF</div>
@@ -1827,7 +1828,7 @@ html,body,input,button,select,textarea { font-family:Figtree,sans-serif; }
 
 <!-- CHECKLISTS -->
 <section class="page" id="page-checklist">
-  <h1 class="pea-extra-title">Checklists <button type="button" class="pea-crisis-inline" onclick="openCrisis()" aria-label="Ouvrir le mode crise" title="Mode crise">&#9888;</button></h1>
+  <h1 class="pea-extra-title">Checklists</h1>
   <div class="page-hero">
     <div class="hp-sup">Operationnel</div>
     <div class="hp-ttl">Checklists</div>
@@ -4567,6 +4568,32 @@ function peaPrivateReconcile(input) {
   document.addEventListener('DOMContentLoaded', showReferenceDate);
 })();
 
+</script>
+<script id="pea-screen-diagnostic">
+function peaScreenDiagnostic() {
+  var nav=document.querySelector('.bnav'), box=nav&&nav.getBoundingClientRect(), viewport=window.visualViewport;
+  var probe=document.createElement('div');
+  probe.style.cssText='position:fixed;inset:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)';
+  document.body.appendChild(probe);
+  var probeStyle=getComputedStyle(probe),top=probeStyle.paddingTop,bottom=probeStyle.paddingBottom,probeBox=probe.getBoundingClientRect();
+  probe.remove();
+  var rounded=function(value){return typeof value==='number'&&isFinite(value)?Math.round(value*10)/10:'indisponible';};
+  var standalone=typeof navigator.standalone==='boolean'?navigator.standalone:(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);
+  var result=document.getElementById('pea-screen-result');
+  result.textContent=['Diagnostic affichage (sans donnees financieres)',
+    'Ecran : '+screen.width+' × '+screen.height,
+    'Echelle ecran : '+rounded(window.devicePixelRatio),
+    'Fenetre : '+window.innerWidth+' × '+window.innerHeight,
+    'Zone visible : '+(viewport?rounded(viewport.width)+' × '+rounded(viewport.height):'indisponible'),
+    'Decalage haut : '+(viewport?rounded(viewport.offsetTop):'indisponible'),
+    'Page : '+document.documentElement.clientWidth+' × '+document.documentElement.clientHeight,
+    'Barre (haut / bas) : '+(box?rounded(box.top)+' / '+rounded(box.bottom):'indisponible'),
+    'Zone fixe (haut / bas) : '+rounded(probeBox.top)+' / '+rounded(probeBox.bottom),
+    'Marge barre : '+(nav?getComputedStyle(nav).paddingBottom:'indisponible'),
+    'Zones de securite haut / bas : '+top+' / '+bottom,
+    'Raccourci ecran accueil : '+(standalone?'oui':'non')].join('\n');
+  result.hidden=false;
+}
 </script>
 </body>
 </html>
